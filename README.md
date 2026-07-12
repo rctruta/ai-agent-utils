@@ -215,4 +215,4 @@ MIT — do whatever you want with it; no warranty. See `LICENSE`.
 per project. The README stub reminds you to add one; MIT is a fine default.)*
 
 ---
-*Built with hard-won wisdom from the SQL Benchmarking Laboratory.*
+*Built with hard-won wisdom from the [SQL Benchmarking Laboratory](https://github.com/rctruta/sql-benchmarks-dagster).*
