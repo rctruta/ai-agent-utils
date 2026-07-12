@@ -6,10 +6,32 @@ A collection of boilerplate scripts and security guidelines for safely collabora
 
 This script generates a secure, bounded workspace optimized for multi-agent collaboration. It strips away opinionated application frameworks and focuses entirely on **Agent Hygiene**.
 
+### Installation
+
+To make the script globally available on your machine:
+
+#### Mac / Linux
+```bash
+# Make it executable
+chmod +x init-agent-project.sh
+
+# Move it to your local binaries directory (ensure ~/.local/bin is in your PATH)
+mkdir -p ~/.local/bin
+mv init-agent-project.sh ~/.local/bin/init-agent-project
+```
+
+#### Windows
+It is highly recommended to run this script within **WSL (Windows Subsystem for Linux)** or **Git Bash**. 
+1. Open Git Bash or your WSL terminal.
+2. Run the same commands as the Mac/Linux instructions above to place the script in a PATH-accessible directory (like `~/.local/bin`).
+
 ### Usage
 
 ```bash
-chmod +x init-agent-project.sh
+# If installed globally:
+init-agent-project <project_name>
+
+# If running from the current directory:
 ./init-agent-project.sh <project_name>
 ```
 
