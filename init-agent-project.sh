@@ -305,20 +305,34 @@ live in \`AGENTS.md\` — and they are **enforced by git hooks**, not merely
 written down.
 
 ## Guardrails
-- \`./agent-lock acquire\` before writing (\`release\` after you push). The
-  pre-commit hook refuses commits while another agent holds the lock.
-- The pre-push hook refuses a dirty working tree (and, for Python, a red
-  test suite).
+- The pre-push hook refuses a dirty working tree — including untracked
+  files — (and, for Python, a red test suite).
 - \`main\` is the source of truth: work on branches, open PRs; never commit
   to \`main\` directly.
 
 ## Getting started
+- **Fresh clone? Hooks do NOT clone.** Run this once per clone or the
+  guardrails above are silently absent:
+  \`git config core.hooksPath .githooks\`
 - Python: open a new terminal and run \`source .venv/bin/activate\`.
-- Copy \`.env.example\` to \`.env\`; set your keys and a distinct \`AGENT_ID\`.
+- Copy \`.env.example\` to \`.env\` and set your keys. If you run more than
+  one agent, give each process its own \`AGENT_ID\` (export it in that
+  agent's environment — one shared \`.env\` can only hold one value).
 
 ## License
 Add a LICENSE file of your choice (MIT is a common, permissive default).
 EOF
+
+# The stub documents the lock only when it was actually provisioned.
+if [[ "$WANT_LOCK" =~ ^[Yy]$ ]]; then
+cat << 'EOF' >> README.md
+
+## Optional same-tree lock (provisioned in this repo)
+`./agent-lock acquire` before writing (`release` after you push). The
+pre-commit hook refuses commits while another agent holds the lock.
+Same-tree only; does nothing across clones.
+EOF
+fi
 
 git init -q
 git config core.hooksPath .githooks
@@ -362,25 +376,34 @@ if [[ "$DO_REMOTE" =~ ^[Yy]$ ]]; then
       read -p "  Enable branch protection on main now (layer 2, requires PRs)? [y/N] " DO_PROT
       DO_PROT=${DO_PROT:-N}
       if [[ "$DO_PROT" =~ ^[Yy]$ ]]; then
+        # NOTE: gh's -F flag does NOT nest dotted keys — brackets are required
+        # (verified live 2026-07-12: dotted form → 422, bracket form → 200).
+        # Also: branch protection on PRIVATE repos requires GitHub Pro; on a
+        # free plan this call returns 403 for private repos.
         if gh api -X PUT "repos/${REPO_SLUG}/branches/main/protection" \
-             -F required_pull_request_reviews.required_approving_review_count=0 \
+             -F "required_pull_request_reviews[required_approving_review_count]=0" \
              -F enforce_admins=true -F required_status_checks=null \
              -F restrictions=null >/dev/null 2>&1; then
           echo "  ✅ Branch protection on: PRs required, administrators included. main is locked."
-          echo "     (From now you work on branches and open PRs — even you.)"
+          echo "     (Direct pushes to main are now rejected — you work on branches and open PRs, even you."
+          echo "      With 0 required reviews it forces the PR paper trail; it does not by itself"
+          echo "      block a bad PR from being merged — add required checks/reviews for that.)"
         else
-          echo "  ! Protection call failed. Run it yourself in your terminal:"
+          echo "  ! Protection call failed. Common cause: private repo on a free plan"
+          echo "    (GitHub requires Pro for branch protection on private repos)."
+          echo "    Make the repo public or upgrade, then run it yourself:"
           echo "      gh api -X PUT repos/${REPO_SLUG}/branches/main/protection \\"
-          echo "        -F required_pull_request_reviews.required_approving_review_count=0 \\"
+          echo "        -F \"required_pull_request_reviews[required_approving_review_count]=0\" \\"
           echo "        -F enforce_admins=true -F required_status_checks=null -F restrictions=null"
         fi
       else
-        echo "  To enable it later, YOU (the human) run this in your terminal:"
+        echo "  To enable it later, YOU (the human) run this in your terminal"
+        echo "  (note: private repos need GitHub Pro for branch protection):"
         echo "      gh api -X PUT repos/${REPO_SLUG:-<owner>/$PROJECT_NAME}/branches/main/protection \\"
-        echo "        -F required_pull_request_reviews.required_approving_review_count=0 \\"
+        echo "        -F \"required_pull_request_reviews[required_approving_review_count]=0\" \\"
         echo "        -F enforce_admins=true -F required_status_checks=null -F restrictions=null"
         echo "    (or on GitHub: Settings → Branches → Add rule → Require a PR +"
-        echo "     Require status checks + Include administrators)"
+        echo "     Include administrators)"
       fi
     else
       echo "  ! Could not create/push (repo may already exist, or auth scope). Fallback:"
