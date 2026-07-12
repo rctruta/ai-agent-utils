@@ -269,6 +269,30 @@ EOF
 pytest
 EOF
 
+  # CI workflow (Python only): the check that lets branch protection BLOCK
+  # instead of just record. The job is named `test` — that name is the
+  # status-check context branch protection requires. Non-Python projects get
+  # no workflow: a placeholder check that always passes would be gate-theater.
+  mkdir -p .github/workflows
+  cat << 'EOF' > .github/workflows/ci.yml
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:   # this job name is the required status-check context
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: |
+          uv venv
+          uv pip install -r requirements.txt
+          .venv/bin/pytest
+EOF
+
   # Venv initialization
   echo "Creating uv venv..."
   uv venv
@@ -373,35 +397,56 @@ if [[ "$DO_REMOTE" =~ ^[Yy]$ ]]; then
       # Layer 2 (branch protection) is a POLICY choice the human makes — offer
       # to apply it now, otherwise print the exact command to run in the
       # terminal. This is what makes "one agent can't bypass CI" real.
+      # Printed-command variant of the required-checks args (used in both
+      # fallback echoes below; must stay in sync with CHECK_ARGS).
+      if [[ "$IS_PYTHON" =~ ^[Yy]$ ]]; then
+        CHECKS_TXT='-F "required_status_checks[strict]=false" -F "required_status_checks[contexts][]=test"'
+      else
+        CHECKS_TXT='-F required_status_checks=null'
+      fi
       read -p "  Enable branch protection on main now (layer 2, requires PRs)? [y/N] " DO_PROT
       DO_PROT=${DO_PROT:-N}
       if [[ "$DO_PROT" =~ ^[Yy]$ ]]; then
         # NOTE: gh's -F flag does NOT nest dotted keys — brackets are required
-        # (verified live 2026-07-12: dotted form → 422, bracket form → 200).
+        # (verified live 2026-07-12: dotted form → 422, bracket form → 200;
+        # required_status_checks[contexts][] also verified live → 200).
         # Also: branch protection on PRIVATE repos requires GitHub Pro; on a
         # free plan this call returns 403 for private repos.
+        # Python projects get CI (.github/workflows/ci.yml, job `test`), so
+        # protection can REQUIRE that check — the gate blocks, not records.
+        # Non-Python projects have no CI, so requiring a check would block
+        # every merge forever; they get the PR-paper-trail config instead.
+        if [[ "$IS_PYTHON" =~ ^[Yy]$ ]]; then
+          CHECK_ARGS=(-F "required_status_checks[strict]=false" -F "required_status_checks[contexts][]=test")
+        else
+          CHECK_ARGS=(-F required_status_checks=null)
+        fi
         if gh api -X PUT "repos/${REPO_SLUG}/branches/main/protection" \
              -F "required_pull_request_reviews[required_approving_review_count]=0" \
-             -F enforce_admins=true -F required_status_checks=null \
+             -F enforce_admins=true "${CHECK_ARGS[@]}" \
              -F restrictions=null >/dev/null 2>&1; then
           echo "  ✅ Branch protection on: PRs required, administrators included. main is locked."
-          echo "     (Direct pushes to main are now rejected — you work on branches and open PRs, even you."
-          echo "      With 0 required reviews it forces the PR paper trail; it does not by itself"
-          echo "      block a bad PR from being merged — add required checks/reviews for that.)"
+          if [[ "$IS_PYTHON" =~ ^[Yy]$ ]]; then
+            echo "     PRs must pass the 'test' CI check (pytest) before merging — the gate BLOCKS."
+          else
+            echo "     (Direct pushes to main are now rejected — you work on branches and open PRs, even you."
+            echo "      With 0 required reviews and no CI it forces the PR paper trail; it does not by itself"
+            echo "      block a bad PR from being merged — add required checks/reviews for that.)"
+          fi
         else
           echo "  ! Protection call failed. Common cause: private repo on a free plan"
           echo "    (GitHub requires Pro for branch protection on private repos)."
           echo "    Make the repo public or upgrade, then run it yourself:"
           echo "      gh api -X PUT repos/${REPO_SLUG}/branches/main/protection \\"
           echo "        -F \"required_pull_request_reviews[required_approving_review_count]=0\" \\"
-          echo "        -F enforce_admins=true -F required_status_checks=null -F restrictions=null"
+          echo "        -F enforce_admins=true ${CHECKS_TXT} -F restrictions=null"
         fi
       else
         echo "  To enable it later, YOU (the human) run this in your terminal"
         echo "  (note: private repos need GitHub Pro for branch protection):"
         echo "      gh api -X PUT repos/${REPO_SLUG:-<owner>/$PROJECT_NAME}/branches/main/protection \\"
         echo "        -F \"required_pull_request_reviews[required_approving_review_count]=0\" \\"
-        echo "        -F enforce_admins=true -F required_status_checks=null -F restrictions=null"
+        echo "        -F enforce_admins=true ${CHECKS_TXT} -F restrictions=null"
         echo "    (or on GitHub: Settings → Branches → Add rule → Require a PR +"
         echo "     Include administrators)"
       fi

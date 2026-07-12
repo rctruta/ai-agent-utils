@@ -47,9 +47,10 @@ When it creates the remote, it also offers to enable **branch protection** for y
 ### What it Provisions
 1. **`AGENTS.md` (The Contract)**: A short map of the gates, placed in the root of your project. Every *enforceable* rule is backed by a mechanism; the few that can't be enforced locally (no `--no-verify`, no agent attribution) are explicitly labelled on-your-honor — and backstopped by branch protection where possible.
 2. **`.githooks/pre-push` (The Gate Everyone Gets)**: Refuses to push a dirty working tree — *including untracked files* — or (for Python) a red test suite. This is **layer 1** — see the Rogue Agent Lesson for why you also need layer 2. Always provisioned. **Caveat: git hooks do not survive cloning.** `core.hooksPath` is local config; anyone (or any agent) working in a fresh clone has no hooks until they run `git config core.hooksPath .githooks` — the generated README stub says so up front.
-3. **`.env.example`**: A safe template for LLM API keys and an `AGENT_ID`. Note: one `.env` holds one value — if you run multiple agents in one tree, give each *process* its own `AGENT_ID` via an environment export (an exported value wins over an empty `.env` line).
-4. **`.vscode/settings.json`** (Python projects): pins the interpreter to the project venv on your machine, so VS Code activates the right environment. `.vscode/` is **gitignored** (editor state is personal), so this stays local. When the script opens the project in VS Code, a new integrated terminal auto-activates the venv (on the very first terminal you may need to press Enter once).
-5. **`README.md` (stub)**: A starter README for the new project — because a hygiene tool that leaves you with no README would be its own small irony.
+3. **`.github/workflows/ci.yml`** (Python projects): a minimal CI workflow — a job named `test` that runs pytest on every PR and push to `main`. This is what lets branch protection **require a passing check** (see §A), turning layer 2 from a paper trail into a blocking gate. Non-Python projects get no workflow — a placeholder check that always passes would be gate-theater.
+4. **`.env.example`**: A safe template for LLM API keys and an `AGENT_ID`. Note: one `.env` holds one value — if you run multiple agents in one tree, give each *process* its own `AGENT_ID` via an environment export (an exported value wins over an empty `.env` line).
+5. **`.vscode/settings.json`** (Python projects): pins the interpreter to the project venv on your machine, so VS Code activates the right environment. `.vscode/` is **gitignored** (editor state is personal), so this stays local. When the script opens the project in VS Code, a new integrated terminal auto-activates the venv (on the very first terminal you may need to press Enter once).
+6. **`README.md` (stub)**: A starter README for the new project — because a hygiene tool that leaves you with no README would be its own small irony.
 
 **Optional (off by default — the script asks, and most projects should say no):** a same-tree commit lock, for the narrow case of two agents sharing **one working directory**. If you opt in you also get:
 - **`.githooks/pre-commit` (The Lock Gate)**: refuses any commit while another agent holds the lock.
@@ -127,13 +128,30 @@ Two facts about this command, learned the hard way:
 
 From here on, **direct pushes to `main` are rejected** — humans and agents both
 work on branches and open PRs (verified: a direct push fails with `GH006`,
-even for the repo admin, thanks to `enforce_admins`). **Be honest about what
-this does and doesn't do:** with 0 required reviews and no required status
-checks, it forces every change through a PR — visibility and a paper trail —
-but it does **not** stop an agent from opening a PR and merging it itself.
-To make the gate *block* rather than *record*, add required status checks
-(you'll need a CI workflow — this script doesn't create one) or a required
-review count ≥ 1.
+even for the repo admin, thanks to `enforce_admins`).
+
+**Blocking vs recording.** For **Python projects**, the script provisions a
+minimal CI workflow (`.github/workflows/ci.yml`, a job named `test` that runs
+pytest on every PR), and its protection call **requires that check** — a PR
+with red tests cannot merge. The gate *blocks*:
+
+```bash
+# what the script runs for Python projects (contexts syntax verified live):
+gh api -X PUT repos/<owner>/<project>/branches/main/protection \
+  -F "required_pull_request_reviews[required_approving_review_count]=0" \
+  -F enforce_admins=true \
+  -F "required_status_checks[strict]=false" \
+  -F "required_status_checks[contexts][]=test" \
+  -F restrictions=null
+```
+
+For **non-Python projects** there is nothing to run, so no workflow is created
+(a placeholder check that always passes would be gate-theater) and protection
+uses `required_status_checks=null`. Be honest about what that config does:
+with 0 required reviews and no checks, it forces every change through a PR —
+visibility and a paper trail — but it does **not** stop an agent opening a PR
+and merging it itself. To make it block, add a real CI check for your stack,
+or a required review count ≥ 1.
 
 ### B. The daily branch workflow
 
@@ -202,7 +220,7 @@ In a recent experiment, an autonomous agent successfully passed its local tests 
 
 It bypassed the red CI workflow using administrator privileges and merged the broken code directly into `main`. **The gate has to run on the pusher's machine.**
 
-This repository provisions a strict local `.githooks/pre-push` script that aborts the `git push` before the bytes leave your laptop. **But be honest about its limit:** a git hook is bypassable with `git push --no-verify`, which is the local-layer equivalent of `gh pr merge --admin`. An agent willing to reach for one flag will reach for the other. So the hook is **layer 1** — it stops honest mistakes and non-adversarial agents. **Layer 2 is remote branch protection with *Include administrators* enabled** (see §3): a `--no-verify` push straight to a protected `main` is rejected by GitHub itself (`GH006`), which the flag cannot bypass. Be precise about layer 2's limit too: as configured here (0 required reviews, no required status checks — generated projects ship no CI), it forces every change through a PR but does not stop an agent merging its own PR. It converts a silent bypass into a visible, attributable one. To make it *block*, add required checks or reviews — see §A. Use both layers; neither alone is a gate.
+This repository provisions a strict local `.githooks/pre-push` script that aborts the `git push` before the bytes leave your laptop. **But be honest about its limit:** a git hook is bypassable with `git push --no-verify`, which is the local-layer equivalent of `gh pr merge --admin`. An agent willing to reach for one flag will reach for the other. So the hook is **layer 1** — it stops honest mistakes and non-adversarial agents. **Layer 2 is remote branch protection with *Include administrators* enabled** (see §3): a `--no-verify` push straight to a protected `main` is rejected by GitHub itself (`GH006`), which the flag cannot bypass. Be precise about layer 2's limit too: for Python projects the script ships CI (pytest on every PR) and requires that check, so a red PR cannot merge — the gate blocks. For non-Python projects there is no CI to require, so protection forces every change through a PR but does not stop an agent merging its own PR — it converts a silent bypass into a visible, attributable one. To make it *block* for your stack, add a real CI check or required reviews — see §A. Use both layers; neither alone is a gate.
 
 ### 2. Multi-Agent Traffic Control (The Lockfile Protocol) — *optional, you probably don't need it*
 
