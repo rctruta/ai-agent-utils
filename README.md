@@ -47,6 +47,94 @@ The script is interactive. It will ask if you are building a Python project.
 5. **`.vscode/settings.json`** (Python projects): pins the interpreter to the project venv — and is **committed on purpose**, so the pin reaches every clone and every agent, not just your machine.
 6. **`.env.example`**: A safe template for LLM API keys and a distinct `AGENT_ID` per agent.
 
+> **A note on the irony of shipping an `AGENTS.md`.** I've measured that an
+> `AGENTS.md` re-read into an agent's context every turn is expensive and
+> doesn't reliably change behavior — so isn't shipping one a contradiction?
+> No, because the file here **enforces nothing**: the hooks do. This
+> `AGENTS.md` is the human-readable *map of the gates*, kept deliberately
+> short, and it tells the agent outright that it doesn't need to memorize it —
+> if it crosses a boundary, a gate stops it. Prose that *describes* a gate is
+> fine; prose that *substitutes* for one is the anti-pattern. The ideal
+> `AGENTS.md` shrinks toward empty as behavior moves into gates.
+
+---
+
+## Working with Git: the exact commands
+
+The script initializes a local repo and makes the first commit. It does **not**
+create the GitHub remote or protect the branch — those are the two steps people
+(and agents) get wrong. Here is the whole path, copy-paste.
+
+### A. First push to GitHub (once per project)
+
+```bash
+# from inside the project the script created:
+gh repo create <owner>/<project> --private --source=. --remote=origin
+git push -u origin main
+
+# then lock the gate — layer 2. Do this IMMEDIATELY, before any agent runs:
+gh api -X PUT repos/<owner>/<project>/branches/main/protection \
+  -F required_pull_request_reviews.required_approving_review_count=0 \
+  -F enforce_admins=true \
+  -F required_status_checks=null \
+  -F restrictions=null
+# (or: GitHub → Settings → Branches → Add rule → Require a PR +
+#  Require status checks + Include administrators)
+```
+
+From here on, **nobody commits to `main` directly** — humans and agents both
+work on branches and open PRs.
+
+### B. The daily branch workflow
+
+```bash
+git checkout main
+git pull origin main            # start from the truth, always
+git checkout -b feat/<thing>    # never work on main
+
+# ... make changes; ./agent-lock acquire first if agents are involved ...
+
+git add -A
+git commit -m "clear message"   # pre-commit + pre-push gates run here / on push
+git push -u origin feat/<thing>
+gh pr create --fill
+# after CI/review: gh pr merge --squash --delete-branch   (NOT --admin)
+```
+
+### C. Switching to / syncing a different branch (the part that bites)
+
+```bash
+# See where you are and whether the tree is clean FIRST:
+git status --short && git branch --show-current
+
+# Switch to an existing branch (tree must be clean — commit or stash first):
+git fetch origin
+git checkout <branch>
+git pull origin <branch>
+
+# Bring your feature branch up to date with main:
+git checkout feat/<thing>
+git fetch origin
+git merge origin/main           # or: git rebase origin/main
+```
+
+**The one that cost me hours** — after a PR is squash-merged, your local `main`
+has the *raw* commits while `origin/main` has *one* squashed commit, so git
+sees "divergence" and `git pull` refuses with *"not possible to fast-forward."*
+When your local commits are already merged via the PR, the fix is to make local
+`main` a clean mirror of the remote:
+
+```bash
+git checkout main
+git fetch origin
+git reset --hard origin/main    # SAFE only when your local commits already
+                                # landed in the PR; it DISCARDS local main commits
+```
+
+Guardrails so you never need the escape hatch: keep `main` a pure mirror of
+`origin/main` (never commit to it directly — always branch), and `git fetch`
+before you branch so you start from current truth.
+
 ---
 
 ## The Manifesto: Why Agent Hygiene is Mandatory

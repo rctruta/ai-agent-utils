@@ -47,75 +47,38 @@ if [[ "$IS_PYTHON" =~ ^[Yy]$ ]] && ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-# 3. Create AGENTS.md (The Universal Contract)
+# 3. Create AGENTS.md (a map of the gates — deliberately short)
+# Design note: prose an agent re-reads every turn is expensive and does not
+# reliably change behavior. So this file is kept minimal; the HOOKS enforce,
+# this file only documents. The ideal AGENTS.md shrinks toward empty as more
+# behavior moves into gates.
 cat << 'EOF' > AGENTS.md
-# AGENTS.md
+# AGENTS.md — a map of the gates (deliberately short)
 
-Shared contract for every autonomous agent that touches this repository.
-The human user is the owner; agents are delegates.
+You are a delegate; the human owns this repository. This file documents what
+the repo ENFORCES. It does not enforce anything itself — the hooks do.
 
-**These are gates, not vows.** Where this document states a rule, a hook or
-script enforces it — because instructions drift and gates hold. If a rule
-here is NOT backed by a mechanism, treat it as a courtesy, not a guarantee.
+Prose that an agent re-reads every turn is expensive and does not reliably
+change behavior. So this file is minimal, and every rule below is backed by a
+mechanism. **You do not need to memorize this: if you cross a boundary, a gate
+stops you.**
 
----
+## The gates (enforced)
+- **Lock before you write.** `./agent-lock acquire` (and `release` after you
+  push). The `pre-commit` hook refuses commits while another agent holds the
+  lock. Two agents in one clone: give each a distinct `AGENT_ID`.
+- **Push a clean tree.** The `pre-push` hook refuses a dirty working tree (and,
+  for Python, a red test suite). `git status` must be clean at end of turn —
+  commit it or delete it; there is no third state.
+- **Main is the truth.** `git pull` at the start of a file-modifying turn;
+  `git add -A && git commit && git push` in the SAME turn as the change.
 
-## 1. The Lockfile Protocol (Traffic Control) — ENFORCED by `.githooks/pre-commit`
-Agents CANNOT see each other's unpushed, uncommitted local edits. To prevent
-concurrent modification, this repo enforces one lock holder at a time.
-
-**Before starting any task that writes files:**
-```bash
-./agent-lock acquire
-```
-- If another live agent holds the lock, `acquire` refuses and exits non-zero.
-- The `pre-commit` hook independently REFUSES any commit while a foreign lock
-  is held — so an agent that skips this step still cannot commit over you.
-
-**When you finish and have pushed:**
-```bash
-./agent-lock release
-```
-
-Distinct identity per agent: set `AGENT_ID` (e.g. `AGENT_ID=claude-term`,
-`AGENT_ID=gemini-ide`) so two agents in the SAME clone are told apart. Without
-distinct IDs the lock degrades to a shared-identity speed bump (see README
-"Honest scope"). A crashed agent's lock auto-expires after 4h so no deadlock.
-
-## 2. The One Rule: Main is the Truth
-`origin/main` is the only source of truth. Any state that lives only on your
-local machine is invisible to your counterpart.
-
-### At the start of every turn that will modify files
-```bash
-git pull origin main
-```
-
-### At the end of every turn that created or modified files
-```bash
-git add -A
-git commit -m "clear message"
-git push origin main
-```
-In the **same turn** as the change — not "later," not "when I'm done for the
-day."
-
-## 3. Never leave state behind — ENFORCED by `.githooks/pre-push`
-`git status` at the end of your turn must be clean. Untracked files are not
-"in progress" — they're invisible. Commit it or delete it; there is no third
-state. The pre-push hook refuses to push a dirty tree.
-
-## 4. No agent attribution in commits
-Do NOT add `Co-authored-by:` trailers, "Generated with <agent>" lines, or any
-agent attribution to commit messages or PR descriptions. The human owns the
-history.
-
-## 5. Do not bypass the gates
-Never use `git push --no-verify`, `git commit --no-verify`, or
-`gh pr merge --admin` to route around a failing hook or check. A red gate
-means fix the cause. Bypassing is the single most damaging move an agent can
-make (see README "The Rogue Agent Lesson"). The remote branch-protection
-layer exists precisely to catch this.
+## The rules a hook can't enforce (on your honor — and watched)
+- **No bypass.** Never `git push --no-verify`, `git commit --no-verify`, or
+  `gh pr merge --admin` to route around a gate. Remote branch protection is
+  watching for exactly this.
+- **No agent attribution** in commit messages or PRs. The human owns the
+  history.
 EOF
 
 # 4. Setup Environment Variables
