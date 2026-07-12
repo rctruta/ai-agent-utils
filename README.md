@@ -66,10 +66,11 @@ When it creates the remote, it also offers to enable **branch protection** for y
 
 ## Working with Git: the exact commands
 
-The script makes the first commit locally and — if you say yes to its prompt —
-creates the GitHub remote and pushes for you. The only step it never automates
-is **branch protection**, because that's an irreversible-ish policy you should
-set with your eyes open. Here is the whole path either way.
+The script makes the first commit locally and — if you say yes to its prompts —
+creates the GitHub remote, pushes, and even offers to enable **branch
+protection** for you. It only ever *offers* the policy steps (push, protection);
+it never forces them, so you stay in control of what goes public and when. Here
+is the whole path either way, for when you want to drive it by hand.
 
 ### Authentication first (the part nobody explains — and you do NOT need an SSH key)
 
