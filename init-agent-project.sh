@@ -244,6 +244,35 @@ __pycache__/
 .agent_lock
 EOF
 
+# README stub — leave the new project self-documenting (ironically, the
+# generator had none). $PROJECT_NAME expands; backticks are escaped to stay
+# literal in this unquoted heredoc.
+cat << EOF > README.md
+# $PROJECT_NAME
+
+An agent-safe workspace, initialized with **ai-agent-utils**
+(https://github.com/rctruta/ai-agent-utils).
+
+Humans and AI coding agents share this repository. The rules of engagement
+live in \`AGENTS.md\` — and they are **enforced by git hooks**, not merely
+written down.
+
+## Guardrails
+- \`./agent-lock acquire\` before writing (\`release\` after you push). The
+  pre-commit hook refuses commits while another agent holds the lock.
+- The pre-push hook refuses a dirty working tree (and, for Python, a red
+  test suite).
+- \`main\` is the source of truth: work on branches, open PRs; never commit
+  to \`main\` directly.
+
+## Getting started
+- Python: open a new terminal and run \`source .venv/bin/activate\`.
+- Copy \`.env.example\` to \`.env\`; set your keys and a distinct \`AGENT_ID\`.
+
+## License
+Add a LICENSE file of your choice (MIT is a common, permissive default).
+EOF
+
 git init -q
 git config core.hooksPath .githooks
 git add .
@@ -278,10 +307,32 @@ if [[ "$DO_REMOTE" =~ ^[Yy]$ ]]; then
       echo "  ✅ Created and pushed via gh's authenticated HTTPS — no SSH key required."
       REPO_SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)
       echo ""
-      echo "  Layer 2 — lock branch protection (paste this):"
-      echo "    gh api -X PUT repos/${REPO_SLUG:-<owner>/$PROJECT_NAME}/branches/main/protection \\"
-      echo "      -F required_pull_request_reviews.required_approving_review_count=0 \\"
-      echo "      -F enforce_admins=true -F required_status_checks=null -F restrictions=null"
+      # Layer 2 (branch protection) is a POLICY choice the human makes — offer
+      # to apply it now, otherwise print the exact command to run in the
+      # terminal. This is what makes "one agent can't bypass CI" real.
+      read -p "  Enable branch protection on main now (layer 2, requires PRs)? [y/N] " DO_PROT
+      DO_PROT=${DO_PROT:-N}
+      if [[ "$DO_PROT" =~ ^[Yy]$ ]]; then
+        if gh api -X PUT "repos/${REPO_SLUG}/branches/main/protection" \
+             -F required_pull_request_reviews.required_approving_review_count=0 \
+             -F enforce_admins=true -F required_status_checks=null \
+             -F restrictions=null >/dev/null 2>&1; then
+          echo "  ✅ Branch protection on: PRs required, administrators included. main is locked."
+          echo "     (From now you work on branches and open PRs — even you.)"
+        else
+          echo "  ! Protection call failed. Run it yourself in your terminal:"
+          echo "      gh api -X PUT repos/${REPO_SLUG}/branches/main/protection \\"
+          echo "        -F required_pull_request_reviews.required_approving_review_count=0 \\"
+          echo "        -F enforce_admins=true -F required_status_checks=null -F restrictions=null"
+        fi
+      else
+        echo "  To enable it later, YOU (the human) run this in your terminal:"
+        echo "      gh api -X PUT repos/${REPO_SLUG:-<owner>/$PROJECT_NAME}/branches/main/protection \\"
+        echo "        -F required_pull_request_reviews.required_approving_review_count=0 \\"
+        echo "        -F enforce_admins=true -F required_status_checks=null -F restrictions=null"
+        echo "    (or on GitHub: Settings → Branches → Add rule → Require a PR +"
+        echo "     Require status checks + Include administrators)"
+      fi
     else
       echo "  ! Could not create/push (repo may already exist, or auth scope). Fallback:"
       echo "      git remote add origin <URL>   # use the HTTPS URL github shows you"
@@ -294,4 +345,13 @@ else
   echo "Next, when ready (no SSH key needed — gh uses an HTTPS token):"
   echo "    gh auth login        # once per machine; choose HTTPS"
   echo "    gh repo create $PROJECT_NAME --source=. --remote=origin --push"
+fi
+
+# 10. Open in VS Code (if available). The committed .vscode/settings.json pins
+# the venv; a NEW integrated terminal auto-activates it (VS Code behavior — on
+# the very first terminal you may need to press Enter once for it to re-source).
+if command -v code >/dev/null 2>&1; then
+  echo ""
+  echo "Opening $PROJECT_NAME in VS Code..."
+  code .
 fi
