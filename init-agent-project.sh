@@ -249,11 +249,49 @@ git config core.hooksPath .githooks
 git add .
 git commit -q -m "chore: initialized secure agent workspace"
 
-echo "✅ Workspace initialized successfully."
+echo "✅ Workspace initialized successfully (local repo, first commit made)."
 echo "   AGENTS.md contract created (rules are hook-enforced)."
 echo "   .githooks/pre-commit installed (lockfile gate)."
 echo "   .githooks/pre-push installed (dirty-tree + test gate; layer 1 of 2)."
 echo "   ./agent-lock helper installed."
+
+# 9. Optional: create the GitHub remote and push (the "and then do the thing").
+# Uses `gh`, which authenticates over HTTPS with its own token — NO SSH KEY
+# NEEDED. If gh is missing or not logged in, we print the exact command and
+# leave the (already safe) local repo untouched.
 echo ""
-echo "Next: create the remote, push main, then enable BRANCH PROTECTION"
-echo "(Require PR + Require status checks + Include administrators) — layer 2."
+read -p "Create a GitHub repo and push it now? [y/N] " DO_REMOTE
+DO_REMOTE=${DO_REMOTE:-N}
+
+if [[ "$DO_REMOTE" =~ ^[Yy]$ ]]; then
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "  ! GitHub CLI (gh) not found. Install https://cli.github.com then run:"
+    echo "      gh repo create $PROJECT_NAME --source=. --remote=origin --push"
+  elif ! gh auth status >/dev/null 2>&1; then
+    echo "  ! Not logged in to GitHub CLI. Run 'gh auth login' — choose HTTPS when"
+    echo "    asked (this needs NO SSH key; gh manages an HTTPS token). Then run:"
+    echo "      gh repo create $PROJECT_NAME --source=. --remote=origin --push"
+  else
+    read -p "  Visibility? [private/public] (default private) " VIS
+    case "$VIS" in public) VIS_FLAG="--public";; *) VIS_FLAG="--private";; esac
+    if gh repo create "$PROJECT_NAME" $VIS_FLAG --source=. --remote=origin --push; then
+      echo "  ✅ Created and pushed via gh's authenticated HTTPS — no SSH key required."
+      REPO_SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)
+      echo ""
+      echo "  Layer 2 — lock branch protection (paste this):"
+      echo "    gh api -X PUT repos/${REPO_SLUG:-<owner>/$PROJECT_NAME}/branches/main/protection \\"
+      echo "      -F required_pull_request_reviews.required_approving_review_count=0 \\"
+      echo "      -F enforce_admins=true -F required_status_checks=null -F restrictions=null"
+    else
+      echo "  ! Could not create/push (repo may already exist, or auth scope). Fallback:"
+      echo "      git remote add origin <URL>   # use the HTTPS URL github shows you"
+      echo "      git push -u origin main"
+      echo "    If git then asks for a password, run 'gh auth setup-git' once so git"
+      echo "    reuses gh's HTTPS token (still no SSH key)."
+    fi
+  fi
+else
+  echo "Next, when ready (no SSH key needed — gh uses an HTTPS token):"
+  echo "    gh auth login        # once per machine; choose HTTPS"
+  echo "    gh repo create $PROJECT_NAME --source=. --remote=origin --push"
+fi

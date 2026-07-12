@@ -35,9 +35,11 @@ init-agent-project <project_name>
 ./init-agent-project.sh <project_name>
 ```
 
-The script is interactive. It will ask if you are building a Python project.
-- **If Yes**: It generates a `uv` virtual environment, a Pytest structure, and `.vscode/settings.json` to force agents to use the correct Python interpreter.
-- **If No**: It skips the Python setup and just provisions the Git Hooks and Agent Contracts.
+The script is interactive. It asks two questions:
+- **"Is this a Python project?"** — If yes, it generates a `uv` virtual environment, a Pytest structure, and a committed `.vscode/settings.json` that pins the interpreter. If no, it skips straight to the git hooks and agent contracts.
+- **"Create a GitHub repo and push it now?"** — If yes, it uses `gh` to create the remote and push in one step (see *Authentication* below — **no SSH key needed**). If no, it leaves you a ready local repo and prints the exact command to run later.
+
+So the full flow is: **init → track → first commit → (optionally) create remote → push** — the script can now take you all the way to GitHub, or stop at the local commit if you prefer to push by hand.
 
 ### What it Provisions
 1. **`AGENTS.md` (The Contract)**: A manifesto placed in the root of your project. Every rule in it is backed by a mechanism — gates, not vows.
@@ -61,18 +63,42 @@ The script is interactive. It will ask if you are building a Python project.
 
 ## Working with Git: the exact commands
 
-The script initializes a local repo and makes the first commit. It does **not**
-create the GitHub remote or protect the branch — those are the two steps people
-(and agents) get wrong. Here is the whole path, copy-paste.
+The script makes the first commit locally and — if you say yes to its prompt —
+creates the GitHub remote and pushes for you. The only step it never automates
+is **branch protection**, because that's an irreversible-ish policy you should
+set with your eyes open. Here is the whole path either way.
+
+### Authentication first (the part nobody explains — and you do NOT need an SSH key)
+
+`gh` (the GitHub CLI) authenticates over **HTTPS with a token it manages**. Run
+this **once per machine**:
+
+```bash
+gh auth login        # pick: GitHub.com → HTTPS → login in browser
+gh auth setup-git    # makes plain `git push` reuse gh's token too
+```
+
+After that, `gh repo create --push`, `git push`, and pushing from **VS Code**
+all work with no SSH key and no password prompts. (If you *saw* VS Code ask for
+`https://github.com...` credentials, that's the symptom of git having an HTTPS
+remote but no stored credential — `gh auth setup-git` is the fix.)
+
+*Prefer SSH keys?* You can — generate a key, add it to GitHub, and use SSH
+remotes (`git@github.com:owner/repo.git`). It's more setup for the same result.
+The `gh`/HTTPS path above is why this tool's commands need no key.
 
 ### A. First push to GitHub (once per project)
 
-```bash
-# from inside the project the script created:
-gh repo create <owner>/<project> --private --source=. --remote=origin
-git push -u origin main
+The script offers to do this for you. To do it by hand (or if you skipped the
+prompt), from inside the project:
 
-# then lock the gate — layer 2. Do this IMMEDIATELY, before any agent runs:
+```bash
+gh repo create <owner>/<project> --private --source=. --remote=origin --push
+```
+
+Then lock the gate — **layer 2, do it before any agent runs:**
+
+```bash
 gh api -X PUT repos/<owner>/<project>/branches/main/protection \
   -F required_pull_request_reviews.required_approving_review_count=0 \
   -F enforce_admins=true \
@@ -154,7 +180,7 @@ It bypassed the red CI workflow using administrator privileges and merged the br
 This repository provisions a strict local `.githooks/pre-push` script that aborts the `git push` before the bytes leave your laptop. **But be honest about its limit:** a git hook is bypassable with `git push --no-verify`, which is the local-layer equivalent of `gh pr merge --admin`. An agent willing to reach for one flag will reach for the other. So the hook is **layer 1** — it stops honest mistakes and non-adversarial agents. **Layer 2 is remote branch protection with *Include administrators* enabled** (see §3): that catches the deliberate bypass, because a `--no-verify` push into a protected branch still fails the required status check. Use both. Neither alone is a gate; together they are.
 
 ### 2. Multi-Agent Traffic Control (The Lockfile Protocol)
-If you use multiple agents (e.g., Claude Code in the terminal and Gemini in your IDE) on the same repository, they will inevitably overwrite each other. **Agents are blind to each other's unpushed, uncommitted local edits.**
+If you use multiple agents on the same repository, they will inevitably overwrite each other. **Agents are blind to each other's unpushed, uncommitted local edits.**
 
 Here is the trap I fell into first, and the fix. A lockfile protocol written **as prose** in `AGENTS.md` — "check for `.agent_lock` before you start" — is just another word, and words don't bind: an agent that never reads the file, or reads it and doesn't bother, overwrites you anyway. (I measured this elsewhere: given an optional-but-useful convention, agents adopt it roughly none of the time unprompted.) So this utility makes the lock a **gate**:
 
