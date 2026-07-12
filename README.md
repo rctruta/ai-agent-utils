@@ -192,7 +192,10 @@ Here is the trap I fell into first, and the fix. A lockfile protocol written **a
 - **`.githooks/pre-commit`** independently **refuses any commit while a foreign lock is held** — so an agent that skips `acquire` entirely still cannot commit over you.
 - **`./agent-lock release`** clears it after you push. A crashed agent's lock **auto-expires after 4h**, so a dead holder never deadlocks the repo.
 
-**Honest scope.** The hook tells agents apart by `AGENT_ID` (falling back to git email / `whoami`). Across separate clones or users it is a hard gate. For two agents in the *same* working directory, give each a distinct `AGENT_ID` (e.g. `claude-term`, `gemini-ide`) to get true mutual exclusion; without distinct IDs it degrades to a shared-identity speed bump. That is the real boundary of what a git hook can enforce — stated plainly rather than oversold.
+**Honest scope.** Be realistic about what this mechanism actually protects:
+- **Zero protection across separate clones.** The `.agent_lock` file is deliberately **gitignored**. It stays local and is never committed or pushed. Each clone has its own lockfile. For collaboration across different clones, you MUST rely on remote branch protection and PRs (layer 2).
+- **Protection within the SAME working directory (e.g. Claude CLI + Gemini IDE in the same repo).** This is where the lock works, but it is **opt-in per agent**. Out of the box, if you do not set a distinct `AGENT_ID` in `.env`, both agents fall back to your `git user.email`. The hook thinks they are the same agent and allows them to commit over each other. You MUST give each agent a distinct `AGENT_ID` to get true mutual exclusion.
+- **The lock gates commits, not concurrent typing.** The `pre-commit` hook only fires at commit time. Two agents in one tree can still clobber each other's *unsaved/uncommitted* work before any commit happens. The lock serializes commits; it doesn't magically prevent concurrent editing.
 
 *One agent per branch at a time — now enforced, not just requested.*
 

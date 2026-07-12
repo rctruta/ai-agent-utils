@@ -97,6 +97,7 @@ cat << 'LOCKEOF' > agent-lock
 # agent-lock — cooperative one-agent-at-a-time lock, with liveness.
 # Enforced by .githooks/pre-commit. Usage: ./agent-lock {acquire|release|status}
 set -e
+[ -f .env ] && source .env
 LOCK=".agent_lock"
 TTL_HOURS=4
 _me() { echo "${AGENT_ID:-$(git config user.email 2>/dev/null || whoami)}@$(hostname)"; }
@@ -104,19 +105,29 @@ _now() { date +%s; }
 
 case "$1" in
   acquire)
-    if [ -f "$LOCK" ]; then
-      owner=$(sed -n '1p' "$LOCK"); ts=$(sed -n '2p' "$LOCK")
-      age_h=$(( ( $(_now) - ${ts:-0} ) / 3600 ))
-      if [ "$owner" = "$(_me)" ]; then echo "[agent-lock] already yours"; exit 0; fi
-      if [ "$age_h" -ge "$TTL_HOURS" ]; then
-        echo "[agent-lock] stale lock ($owner, ${age_h}h old) — reclaiming."
-      else
-        echo "[agent-lock] REFUSED: held by '$owner' (${age_h}h ago). One agent per branch." >&2
-        exit 1
-      fi
+    # Attempt to create the lock atomically.
+    # set -o noclobber ensures the write fails if the file already exists, closing the TOCTOU race condition.
+    if ( set -o noclobber; printf '%s\n%s\n' "$(_me)" "$(_now)" > "$LOCK" 2>/dev/null ); then
+        echo "[agent-lock] acquired by $(_me)"
+        exit 0
     fi
-    printf '%s\n%s\n' "$(_me)" "$(_now)" > "$LOCK"
-    echo "[agent-lock] acquired by $(_me)"
+    
+    # If we get here, the lock exists. Read it and check TTL.
+    owner=$(sed -n '1p' "$LOCK" 2>/dev/null || echo "unknown")
+    ts=$(sed -n '2p' "$LOCK" 2>/dev/null || echo "0")
+    age_h=$(( ( $(_now) - ${ts:-0} ) / 3600 ))
+    
+    if [ "$owner" = "$(_me)" ]; then echo "[agent-lock] already yours"; exit 0; fi
+    if [ "$age_h" -ge "$TTL_HOURS" ]; then
+      echo "[agent-lock] stale lock ($owner, ${age_h}h old) — reclaiming."
+      # Atomic takeover is hard without a staging file, but acceptable for stale locks.
+      printf '%s\n%s\n' "$(_me)" "$(_now)" > "$LOCK"
+      echo "[agent-lock] acquired by $(_me) (reclaimed)"
+    else
+      echo "[agent-lock] REFUSED: held by '$owner' (${age_h}h ago)." >&2
+      echo "STOP IMMEDIATELY. Do not retry. Yield control back to your caller (human or orchestrator agent) and report that you are blocked." >&2
+      exit 1
+    fi
     ;;
   release)
     if [ -f "$LOCK" ] && [ "$(sed -n '1p' "$LOCK")" != "$(_me)" ]; then
@@ -146,6 +157,7 @@ cat << 'EOF' > .githooks/pre-commit
 # Enforce the agent lock: refuse a commit while a FOREIGN lock is held.
 # This is what turns the Lockfile Protocol from prose into a gate.
 set -e
+[ -f .env ] && source .env
 LOCK=".agent_lock"
 [ -f "$LOCK" ] || exit 0   # no lock held → nothing to enforce
 owner=$(sed -n '1p' "$LOCK" 2>/dev/null)
