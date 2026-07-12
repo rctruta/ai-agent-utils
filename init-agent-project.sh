@@ -198,8 +198,9 @@ if [ -x "$PY" ]; then
 fi
 EOF
 
-  # VS Code settings — committed on purpose (see .gitignore un-ignore below),
-  # so the interpreter pin reaches every clone and every agent.
+  # VS Code settings — created locally to pin the interpreter to the venv.
+  # .vscode is gitignored (personal editor state), so this stays on your
+  # machine; it is not committed or shared.
   mkdir -p .vscode
   cat << 'EOF' > .vscode/settings.json
 {
@@ -239,8 +240,7 @@ cat << 'EOF' > .gitignore
 __pycache__/
 *.pyc
 .pytest_cache/
-.vscode/*
-!.vscode/settings.json
+.vscode/
 .agent_lock
 EOF
 
@@ -250,10 +250,8 @@ EOF
 cat << EOF > README.md
 # $PROJECT_NAME
 
-An agent-safe workspace, initialized with **ai-agent-utils**
-(https://github.com/rctruta/ai-agent-utils).
-
-Humans and AI coding agents share this repository. The rules of engagement
+An agent-safe workspace: humans and AI coding agents share this repository.
+The rules of engagement
 live in \`AGENTS.md\` — and they are **enforced by git hooks**, not merely
 written down.
 

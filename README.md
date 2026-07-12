@@ -36,7 +36,7 @@ init-agent-project <project_name>
 ```
 
 The script is interactive. It asks two questions:
-- **"Is this a Python project?"** — If yes, it generates a `uv` virtual environment, a Pytest structure, and a committed `.vscode/settings.json` that pins the interpreter. If no, it skips straight to the git hooks and agent contracts.
+- **"Is this a Python project?"** — If yes, it generates a `uv` virtual environment, a Pytest structure, and a `.vscode/settings.json` (gitignored, local) that pins the interpreter. If no, it skips straight to the git hooks and agent contracts.
 - **"Create a GitHub repo and push it now?"** — If yes, it uses `gh` to create the remote and push in one step (see *Authentication* below — **no SSH key needed**). If no, it leaves you a ready local repo and prints the exact command to run later.
 
 So the full flow is: **init → track → first commit → (optionally) create remote → push → (optionally) enable branch protection → open in VS Code**. The script can take you all the way to a protected repo open in your editor, or stop at the local commit if you prefer to drive the rest by hand.
@@ -48,7 +48,7 @@ When it creates the remote, it also offers to enable **branch protection** for y
 2. **`.githooks/pre-commit` (The Lock Gate)**: Refuses any commit while another agent holds the lock. This is what makes the Lockfile Protocol real instead of a suggestion.
 3. **`.githooks/pre-push` (The Local Gate)**: Refuses to push a dirty working tree or (for Python) a red test suite. This is **layer 1** — see the Rogue Agent Lesson for why you also need layer 2.
 4. **`./agent-lock` (The Helper)**: One-command `acquire`/`release`/`status`, so the lock protocol is a command rather than a three-step ritual an agent must remember.
-5. **`.vscode/settings.json`** (Python projects): pins the interpreter to the project venv — and is **committed on purpose**, so the pin reaches every clone and every agent, not just your machine. When the script opens the project in VS Code at the end, a new integrated terminal auto-activates the venv (on the very first terminal you may need to press Enter once for it to re-source).
+5. **`.vscode/settings.json`** (Python projects): pins the interpreter to the project venv on your machine, so VS Code activates the right environment. `.vscode/` is **gitignored** (editor state is personal), so this stays local. When the script opens the project in VS Code, a new integrated terminal auto-activates the venv (on the very first terminal you may need to press Enter once).
 6. **`README.md` (stub)**: A starter README for the new project — because a hygiene tool that leaves you with no README would be its own small irony.
 7. **`.env.example`**: A safe template for LLM API keys and a distinct `AGENT_ID` per agent.
 
