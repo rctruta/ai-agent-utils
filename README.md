@@ -1,6 +1,6 @@
 # AI Agent Utilities
 
-*Multi-agent coding is a concurrency problem. This is a small, honest toolkit for the shared-state collisions that show up the moment more than one AI agent writes to your repo — plus the git discipline I learned catching them.*
+*A small, honest toolkit for working with AI coding agents: one script that sets up a repo with enforced git discipline — hooks, branch protection, and an agent contract that documents the gates instead of pleading with the agent.*
 
 ## The Initialization Script: `init-agent-project.sh`
 
@@ -207,10 +207,10 @@ Here is the trap I fell into first, and the fix. A lockfile protocol written **a
 
 **Honest scope.** Be realistic about what this mechanism actually protects:
 - **Zero protection across separate clones.** The `.agent_lock` file is deliberately **gitignored**. It stays local and is never committed or pushed. Each clone has its own lockfile. For collaboration across different clones, you MUST rely on remote branch protection and PRs (layer 2).
-- **Protection within the SAME working directory (e.g. Claude CLI + Gemini IDE in the same repo).** This is where the lock works, but it is **opt-in per agent**. Out of the box, if you do not set a distinct `AGENT_ID` in `.env`, both agents fall back to your `git user.email`. The hook thinks they are the same agent and allows them to commit over each other. You MUST give each agent a distinct `AGENT_ID` to get true mutual exclusion.
+- **Protection only within the SAME working directory.** This is where the lock works, but identity is **opt-in per agent**: if you do not give each agent a distinct `AGENT_ID`, both fall back to your `git user.email`. The hook thinks they are the same agent and allows them to commit over each other. Distinct `AGENT_ID`s are required for the lock to distinguish them at all.
 - **The lock gates commits, not concurrent typing.** The `pre-commit` hook only fires at commit time. Two agents in one tree can still clobber each other's *unsaved/uncommitted* work before any commit happens. The lock serializes commits; it doesn't magically prevent concurrent editing.
 
-*One agent per branch at a time — now enforced, not just requested.*
+*If all of the above sounds like more machinery than your problem deserves — it probably is. One agent per branch, protected `main`, PRs to merge: that's the actual solution.*
 
 ### 3. Branch Protection & The Chicken-and-Egg Problem
 You should always protect your `main` branch on GitHub, requiring Pull Requests for all changes. Agents should only ever work on feature branches.
