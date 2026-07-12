@@ -120,7 +120,11 @@ cat << 'LOCKEOF' > agent-lock
 # agent-lock — cooperative one-agent-at-a-time lock, with liveness.
 # Enforced by .githooks/pre-commit. Usage: ./agent-lock {acquire|release|status}
 set -e
-[ -f .env ] && source .env
+# Safe extraction: only override AGENT_ID if it's explicitly set to a non-empty value in .env
+if [ -f .env ]; then
+  ENV_ID=$(grep -v '^#' .env | grep -E '^AGENT_ID=' | cut -d= -f2-)
+  [ -n "$ENV_ID" ] && AGENT_ID="$ENV_ID"
+fi
 LOCK=".agent_lock"
 TTL_HOURS=4
 _me() { echo "${AGENT_ID:-$(git config user.email 2>/dev/null || whoami)}@$(hostname)"; }
@@ -180,7 +184,11 @@ cat << 'EOF' > .githooks/pre-commit
 # Enforce the agent lock: refuse a commit while a FOREIGN lock is held.
 # This is what turns the Lockfile Protocol from prose into a gate.
 set -e
-[ -f .env ] && source .env
+# Safe extraction: only override AGENT_ID if it's explicitly set to a non-empty value in .env
+if [ -f .env ]; then
+  ENV_ID=$(grep -v '^#' .env | grep -E '^AGENT_ID=' | cut -d= -f2-)
+  [ -n "$ENV_ID" ] && AGENT_ID="$ENV_ID"
+fi
 LOCK=".agent_lock"
 [ -f "$LOCK" ] || exit 0   # no lock held → nothing to enforce
 owner=$(sed -n '1p' "$LOCK" 2>/dev/null)
