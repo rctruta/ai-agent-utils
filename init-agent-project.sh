@@ -384,8 +384,19 @@ if [[ "$DO_REMOTE" =~ ^[Yy]$ ]]; then
     echo "  ! GitHub CLI (gh) not found. Install https://cli.github.com then run:"
     echo "      gh repo create $PROJECT_NAME --source=. --remote=origin --push"
   elif ! gh auth status >/dev/null 2>&1; then
-    echo "  ! Not logged in to GitHub CLI. Run 'gh auth login' — choose HTTPS when"
-    echo "    asked (this needs NO SSH key; gh manages an HTTPS token). Then run:"
+    echo "  ! Not logged in to GitHub CLI. Run 'gh auth login -s workflow' — choose"
+    echo "    HTTPS when asked (this needs NO SSH key; gh manages an HTTPS token;"
+    echo "    the workflow scope lets it push the CI file). Then run:"
+    echo "      gh repo create $PROJECT_NAME --source=. --remote=origin --push"
+  elif [[ "$IS_PYTHON" =~ ^[Yy]$ ]] && ! gh auth status 2>&1 | grep -q "'workflow'"; then
+    # Python projects include .github/workflows/ci.yml. GitHub REFUSES a push
+    # that creates/updates workflow files from an OAuth token without the
+    # `workflow` scope — the repo gets created but the push dies half-done.
+    # Fail fast BEFORE creating the remote (verified live 2026-07-12).
+    echo "  ! Your gh token lacks the 'workflow' scope, which GitHub requires to"
+    echo "    push this project's CI file (.github/workflows/ci.yml). Fix it, then"
+    echo "    re-run or push by hand:"
+    echo "      gh auth refresh -h github.com -s workflow"
     echo "      gh repo create $PROJECT_NAME --source=. --remote=origin --push"
   else
     read -p "  Visibility? [private/public] (default private) " VIS
@@ -451,7 +462,10 @@ if [[ "$DO_REMOTE" =~ ^[Yy]$ ]]; then
         echo "     Include administrators)"
       fi
     else
-      echo "  ! Could not create/push (repo may already exist, or auth scope). Fallback:"
+      echo "  ! Could not create/push (repo may already exist, or auth scope)."
+      echo "    If the error mentions 'workflow scope': your token can't push CI"
+      echo "    files — run 'gh auth refresh -h github.com -s workflow' and retry."
+      echo "    Otherwise, fallback:"
       echo "      git remote add origin <URL>   # use the HTTPS URL github shows you"
       echo "      git push -u origin main"
       echo "    If git then asks for a password, run 'gh auth setup-git' once so git"
@@ -460,7 +474,8 @@ if [[ "$DO_REMOTE" =~ ^[Yy]$ ]]; then
   fi
 else
   echo "Next, when ready (no SSH key needed — gh uses an HTTPS token):"
-  echo "    gh auth login        # once per machine; choose HTTPS"
+  echo "    gh auth login -s workflow   # once per machine; choose HTTPS ('-s workflow'"
+  echo "                                # lets the token push CI files)"
   echo "    gh repo create $PROJECT_NAME --source=. --remote=origin --push"
 fi
 
