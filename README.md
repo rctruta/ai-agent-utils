@@ -1,6 +1,6 @@
 # AI Agent Utilities
 
-A collection of boilerplate scripts and security guidelines for safely collaborating with autonomous coding agents (like Claude Code, Gemini IDE, etc.).
+*Multi-agent coding is a concurrency problem. This is a small, honest toolkit for the shared-state collisions that show up the moment more than one AI agent writes to your repo — plus the git discipline I learned catching them.*
 
 ## The Initialization Script: `init-agent-project.sh`
 
