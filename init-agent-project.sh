@@ -47,6 +47,13 @@ if [[ "$IS_PYTHON" =~ ^[Yy]$ ]] && ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
+# The same-tree commit lock is OPTIONAL and narrow: it only helps two agents
+# sharing ONE working directory (with distinct AGENT_IDs), and gives zero
+# protection across clones/worktrees. For almost everyone the discipline —
+# branches + PRs + branch protection — is the real answer. Default: no.
+read -p "Add the optional same-tree agent-lock? (most projects don't need it) [y/N] " WANT_LOCK
+WANT_LOCK=${WANT_LOCK:-N}
+
 # 3. Create AGENTS.md (a map of the gates — deliberately short)
 # Design note: prose an agent re-reads every turn is expensive and does not
 # reliably change behavior. So this file is kept minimal; the HOOKS enforce,
@@ -64,14 +71,15 @@ mechanism. **You do not need to memorize this: if you cross a boundary, a gate
 stops you.**
 
 ## The gates (enforced)
-- **Lock before you write.** `./agent-lock acquire` (and `release` after you
-  push). The `pre-commit` hook refuses commits while another agent holds the
-  lock. Two agents in one clone: give each a distinct `AGENT_ID`.
 - **Push a clean tree.** The `pre-push` hook refuses a dirty working tree (and,
   for Python, a red test suite). `git status` must be clean at end of turn —
   commit it or delete it; there is no third state.
 - **Main is the truth.** `git pull` at the start of a file-modifying turn;
-  `git add -A && git commit && git push` in the SAME turn as the change.
+  `git add -A && git commit && git push` in the SAME turn as the change. Work
+  on branches, open PRs; never commit to `main` directly.
+- **The real multi-agent gate is remote branch protection** (Require PR +
+  Include administrators), not anything local. Structure — one agent per
+  branch — is what keeps agents from colliding, not a lockfile.
 
 ## The rules a hook can't enforce (on your honor — and watched)
 - **No bypass.** Never `git push --no-verify`, `git commit --no-verify`, or
@@ -91,7 +99,22 @@ ANTHROPIC_API_KEY=
 EOF
 cp .env.example .env
 
-# 5. The agent-lock helper (turns the protocol from prose into a command) -----
+# 5. OPTIONAL same-tree agent-lock (helper + pre-commit gate). Only provisioned
+# if the user opted in — for the narrow case of two agents in one working tree.
+if [[ "$WANT_LOCK" =~ ^[Yy]$ ]]; then
+
+# Document the opt-in lock in AGENTS.md (appended, so the base contract stays
+# lock-free for the common case).
+cat << 'EOF' >> AGENTS.md
+
+## Optional: the same-tree commit lock
+- **Lock before you write.** `./agent-lock acquire` (and `release` after you
+  push). The `pre-commit` hook refuses commits while another agent holds the
+  lock. Two agents in one working tree: give each a distinct `AGENT_ID`.
+  (Zero effect across separate clones/worktrees — use branch protection there.)
+EOF
+
+# The agent-lock helper (turns the protocol from prose into a command).
 cat << 'LOCKEOF' > agent-lock
 #!/bin/bash
 # agent-lock — cooperative one-agent-at-a-time lock, with liveness.
@@ -170,10 +193,14 @@ if [ "$owner" != "$me" ]; then
 fi
 EOF
 
-# 6b. pre-push: refuse a dirty tree (and, for Python, a red test suite).
+fi  # end: optional same-tree lock (WANT_LOCK) — helper + pre-commit gate
+
+# 6b. pre-push (ALWAYS provisioned): refuse a dirty tree (and, for Python, a
+# red test suite). This is the gate everyone gets, lock or no lock.
 # NOTE: git hooks are bypassable with --no-verify. This is layer 1 (honest
 # mistakes + non-adversarial agents). Layer 2 is remote branch protection —
 # see the README. Do not sell this hook as unbypassable.
+mkdir -p .githooks
 cat << 'EOF' > .githooks/pre-push
 #!/bin/bash
 # Enforce dirty-tree policy and (for Python) the test gate.
@@ -241,11 +268,13 @@ EOF
   uv pip install -r requirements.txt
 fi
 
-chmod +x .githooks/pre-commit .githooks/pre-push
+chmod +x .githooks/pre-push
+[ -f .githooks/pre-commit ] && chmod +x .githooks/pre-commit
 
 # 8. Git Setup ----------------------------------------------------------------
-# .vscode is ignored EXCEPT settings.json — the interpreter pin is the whole
-# point of provisioning it, so it must be committed and shared, not local-only.
+# .vscode/ is gitignored entirely — editor state is personal. The interpreter
+# pin is provisioned locally so VS Code activates the right venv, but it is not
+# committed or shared.
 cat << 'EOF' > .gitignore
 .venv/
 .env
@@ -290,9 +319,11 @@ git commit -q -m "chore: initialized secure agent workspace"
 
 echo "✅ Workspace initialized successfully (local repo, first commit made)."
 echo "   AGENTS.md contract created (rules are hook-enforced)."
-echo "   .githooks/pre-commit installed (lockfile gate)."
 echo "   .githooks/pre-push installed (dirty-tree + test gate; layer 1 of 2)."
-echo "   ./agent-lock helper installed."
+if [[ "$WANT_LOCK" =~ ^[Yy]$ ]]; then
+  echo "   .githooks/pre-commit installed (lockfile gate)."
+  echo "   ./agent-lock helper installed."
+fi
 
 # 9. Optional: create the GitHub remote and push (the "and then do the thing").
 # Uses `gh`, which authenticates over HTTPS with its own token — NO SSH KEY

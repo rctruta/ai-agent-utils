@@ -45,12 +45,16 @@ When it creates the remote, it also offers to enable **branch protection** for y
 
 ### What it Provisions
 1. **`AGENTS.md` (The Contract)**: A manifesto placed in the root of your project. Every rule in it is backed by a mechanism — gates, not vows.
-2. **`.githooks/pre-commit` (The Lock Gate)**: Refuses any commit while another agent holds the lock. This is what makes the Lockfile Protocol real instead of a suggestion.
-3. **`.githooks/pre-push` (The Local Gate)**: Refuses to push a dirty working tree or (for Python) a red test suite. This is **layer 1** — see the Rogue Agent Lesson for why you also need layer 2.
-4. **`./agent-lock` (The Helper)**: One-command `acquire`/`release`/`status`, so the lock protocol is a command rather than a three-step ritual an agent must remember.
-5. **`.vscode/settings.json`** (Python projects): pins the interpreter to the project venv on your machine, so VS Code activates the right environment. `.vscode/` is **gitignored** (editor state is personal), so this stays local. When the script opens the project in VS Code, a new integrated terminal auto-activates the venv (on the very first terminal you may need to press Enter once).
-6. **`README.md` (stub)**: A starter README for the new project — because a hygiene tool that leaves you with no README would be its own small irony.
-7. **`.env.example`**: A safe template for LLM API keys and a distinct `AGENT_ID` per agent.
+2. **`.githooks/pre-push` (The Gate Everyone Gets)**: Refuses to push a dirty working tree or (for Python) a red test suite. This is **layer 1** — see the Rogue Agent Lesson for why you also need layer 2. Always provisioned.
+3. **`.env.example`**: A safe template for LLM API keys and a distinct `AGENT_ID` per agent.
+4. **`.vscode/settings.json`** (Python projects): pins the interpreter to the project venv on your machine, so VS Code activates the right environment. `.vscode/` is **gitignored** (editor state is personal), so this stays local. When the script opens the project in VS Code, a new integrated terminal auto-activates the venv (on the very first terminal you may need to press Enter once).
+5. **`README.md` (stub)**: A starter README for the new project — because a hygiene tool that leaves you with no README would be its own small irony.
+
+**Optional (off by default — the script asks, and most projects should say no):** a same-tree commit lock, for the narrow case of two agents sharing **one working directory**. If you opt in you also get:
+- **`.githooks/pre-commit` (The Lock Gate)**: refuses any commit while another agent holds the lock.
+- **`./agent-lock` (The Helper)**: one-command `acquire`/`release`/`status`.
+
+Skip it unless you actually run two agents in one tree — across separate clones/branches it does nothing, and branch protection is the real gate (see §2).
 
 > **A note on the irony of shipping an `AGENTS.md`.** I've measured that an
 > `AGENTS.md` re-read into an agent's context every turn is expensive and
@@ -183,8 +187,17 @@ It bypassed the red CI workflow using administrator privileges and merged the br
 
 This repository provisions a strict local `.githooks/pre-push` script that aborts the `git push` before the bytes leave your laptop. **But be honest about its limit:** a git hook is bypassable with `git push --no-verify`, which is the local-layer equivalent of `gh pr merge --admin`. An agent willing to reach for one flag will reach for the other. So the hook is **layer 1** — it stops honest mistakes and non-adversarial agents. **Layer 2 is remote branch protection with *Include administrators* enabled** (see §3): that catches the deliberate bypass, because a `--no-verify` push into a protected branch still fails the required status check. Use both. Neither alone is a gate; together they are.
 
-### 2. Multi-Agent Traffic Control (The Lockfile Protocol)
-If you use multiple agents on the same repository, they will inevitably overwrite each other. **Agents are blind to each other's unpushed, uncommitted local edits.**
+### 2. Multi-Agent Traffic Control (The Lockfile Protocol) — *optional, you probably don't need it*
+
+**Read this as a cautionary tale, not a recommended default.** The real fix for
+agents colliding is structural: one agent per branch, `main` protected, PRs to
+merge. A same-tree lockfile only helps the narrow case where two agents share
+**one working directory** — and even then it has hard limits (below). It's
+**off by default**; the script asks before provisioning it. Most repos —
+including the ones I built this for — don't turn it on. Here's the mechanism
+anyway, honestly scoped.
+
+If you use multiple agents in the same working tree, they can overwrite each other. **Agents are blind to each other's unpushed, uncommitted local edits.**
 
 Here is the trap I fell into first, and the fix. A lockfile protocol written **as prose** in `AGENTS.md` — "check for `.agent_lock` before you start" — is just another word, and words don't bind: an agent that never reads the file, or reads it and doesn't bother, overwrites you anyway. (I measured this elsewhere: given an optional-but-useful convention, agents adopt it roughly none of the time unprompted.) So this utility makes the lock a **gate**:
 
