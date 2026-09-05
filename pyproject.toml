@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-agent-utils"
+version = "0.1.0"
+description = "Toolkit for AI coding agents: git guardrails, agent contracts, Substrate Security Audit & Avatar QR Studio."
+readme = "README.md"
+authors = [
+    { name = "Ramona C. Truta" }
+]
+requires-python = ">=3.9"
+dependencies = [
+    "qrcode>=7.4.2",
+    "pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+avatar-qr = "avatar_qr:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

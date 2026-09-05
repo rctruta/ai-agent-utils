@@ -21,8 +21,21 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
+WANT_GATES=1
+ARGS=""
+for a in "$@"; do
+  case "$a" in
+    --gates)    WANT_GATES=1 ;;
+    --no-gates) WANT_GATES=0 ;;
+    *)          ARGS="$ARGS $a" ;;
+  esac
+done
+# shellcheck disable=SC2086
+set -- $ARGS
+
 PROJECT_NAME=$1
 ROOT_DIR=${2:-$HOME/Projects}
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # 1. Ensure Root Directory Exists
 if [ ! -d "$ROOT_DIR" ]; then
@@ -359,6 +372,22 @@ EOF
 fi
 
 git init -q
+
+# --- GATES INSTALL ---------------------------------------------------------
+# Claim integrity + change safety. Agent-agnostic: plain scripts run by git
+# hooks, so they bind whoever is driving. Agent-specific files only DESCRIBE.
+if [ "$WANT_GATES" = "1" ] && [ -d "$SCRIPT_DIR/templates/gates" ]; then
+  mkdir -p .gates
+  cp -R "$SCRIPT_DIR/templates/gates/." .gates/
+  chmod +x .gates/verify.py .gates/scan.py .gates/checkpoint.sh .gates/tests/prove_gates.sh 2>/dev/null || true
+  printf '.gates/checkpoints/\n.gates/ledger.jsonl\n' >> .gitignore
+  sh "$SCRIPT_DIR/templates/install_gates.sh" || true
+  chmod +x .githooks/pre-commit .githooks/pre-push 2>/dev/null || true
+  echo "=> Gates installed: .gates/ + pre-commit gate + agent adapters"
+elif [ "$WANT_GATES" = "1" ]; then
+  echo "=> WARNING: templates/gates not found; gates skipped." >&2
+fi
+
 git config core.hooksPath .githooks
 git add .
 git commit -q -m "chore: initialized secure agent workspace"
