@@ -1,0 +1,17 @@
+# Scratch and temporary work
+/scratch/
+scratch/
+*.png
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
+# Environment and personal editor state
+.env
+.vscode/
+.DS_Store

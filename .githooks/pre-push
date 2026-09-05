@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# .githooks/pre-push — Layer 1 Gate: refuse dirty tree and failing pytest suite.
+
+set -eo pipefail
+
+echo "🔍 Running pre-push checks..."
+
+# Check 1: Refuse dirty working tree
+if [[ -n $(git status --porcelain) ]]; then
+  echo "❌ Push aborted: working tree has uncommitted or untracked changes."
+  echo "   Commit or stash all changes before pushing."
+  exit 1
+fi
+
+# Check 2: Run pytest if venv exists
+if [[ -d ".venv" ]]; source .venv/bin/activate 2>/dev/null || true; fi
+
+if command -v pytest >/dev/null 2>&1; then
+  echo "🧪 Running pytest suite..."
+  pytest tests/ -v
+else
+  echo "⚠️ pytest not found in PATH; skipping Python test check."
+fi
+
+echo "✅ Pre-push checks passed cleanly."

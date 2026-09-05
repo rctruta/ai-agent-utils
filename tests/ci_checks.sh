@@ -16,12 +16,16 @@ echo "2) no broken dotted gh syntax anywhere (never worked; 422)"
 
 ROOT=$(mktemp -d)
 trap 'rm -rf "$ROOT"' EXIT
-run() { printf "$1" | bash "$SCRIPT" "$2" "$ROOT" >/dev/null 2>&1; }
+run() { printf "$1" | bash "$SCRIPT" "$2" "$ROOT" "${@:3}" >/dev/null 2>&1; }
 
-echo "3) default path: pre-push only — no lock, no CI workflow"
+echo "3) default path: pre-push + claim gate — no lock, no CI workflow"
 run 'N\nN\nN\n' plain
 [ -f "$ROOT/plain/.githooks/pre-push" ]
-[ ! -e "$ROOT/plain/.githooks/pre-commit" ]
+# pre-commit now exists because the claim gate lives there. It must contain the
+# gate and must NOT contain the optional same-tree lock.
+[ -f "$ROOT/plain/.githooks/pre-commit" ]
+grep -q 'claim integrity gate' "$ROOT/plain/.githooks/pre-commit"
+! grep -q 'agent-lock' "$ROOT/plain/.githooks/pre-commit"
 [ ! -e "$ROOT/plain/agent-lock" ]
 [ ! -e "$ROOT/plain/.github/workflows/ci.yml" ]
 ! grep -q 'same-tree commit lock' "$ROOT/plain/AGENTS.md"
@@ -40,6 +44,22 @@ run 'y\nN\nN\n' py
 grep -q '^  test:' "$ROOT/py/.github/workflows/ci.yml"
 (cd "$ROOT/py" && git ls-files | grep -q 'workflows/ci.yml')
 grep -q 'pytest' "$ROOT/py/requirements.txt"
+
+echo "5b) gates: installed by default, provable, and skippable"
+[ -f "$ROOT/plain/.gates/FACTS.yaml" ]
+[ -x "$ROOT/plain/.gates/verify.py" ]
+[ -x "$ROOT/plain/.gates/scan.py" ]
+[ -x "$ROOT/plain/.gates/checkpoint.sh" ]
+[ -f "$ROOT/plain/.claude/skills/gates/SKILL.md" ]
+[ -f "$ROOT/plain/.cursor/rules/gates.mdc" ]
+grep -q 'Claim integrity (enforced)' "$ROOT/plain/AGENTS.md"
+# every gate must actually fire
+(cd "$ROOT/plain" && ./.gates/tests/prove_gates.sh >/dev/null)
+# --no-gates restores the minimal path
+run 'N\nN\nN\n' nogates --no-gates
+[ ! -e "$ROOT/nogates/.gates" ]
+[ ! -e "$ROOT/nogates/.claude" ]
+! grep -q 'Claim integrity' "$ROOT/nogates/AGENTS.md"
 
 echo "6) hooks are wired (core.hooksPath) and first commit exists"
 [ "$(git -C "$ROOT/plain" config core.hooksPath)" = ".githooks" ]
