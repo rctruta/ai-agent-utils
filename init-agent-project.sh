@@ -35,7 +35,14 @@ set -- $ARGS
 
 PROJECT_NAME=$1
 ROOT_DIR=${2:-$HOME/Projects}
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolve symlinks so templates/ is found when invoked via ~/.local/bin/init-agent-project.
+SOURCE="${BASH_SOURCE[0]:-$0}"
+while [ -L "$SOURCE" ]; do
+  LINK_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  case "$SOURCE" in /*) ;; *) SOURCE="$LINK_DIR/$SOURCE" ;; esac
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
 # 1. Ensure Root Directory Exists
 if [ ! -d "$ROOT_DIR" ]; then
@@ -385,7 +392,8 @@ if [ "$WANT_GATES" = "1" ] && [ -d "$SCRIPT_DIR/templates/gates" ]; then
   chmod +x .githooks/pre-commit .githooks/pre-push 2>/dev/null || true
   echo "=> Gates installed: .gates/ + pre-commit gate + agent adapters"
 elif [ "$WANT_GATES" = "1" ]; then
-  echo "=> WARNING: templates/gates not found; gates skipped." >&2
+  echo "Error: gates requested but $SCRIPT_DIR/templates/gates not found. Pass --no-gates to skip on purpose." >&2
+  exit 1
 fi
 
 git config core.hooksPath .githooks

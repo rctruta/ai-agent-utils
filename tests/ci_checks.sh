@@ -61,6 +61,13 @@ run 'N\nN\nN\n' nogates --no-gates
 [ ! -e "$ROOT/nogates/.claude" ]
 ! grep -q 'Claim integrity' "$ROOT/nogates/AGENTS.md"
 
+echo "5c) invoked through a symlink (how ~/.local/bin/init-agent-project runs): gates still installed"
+mkdir -p "$ROOT/bin"
+ln -s "$SCRIPT" "$ROOT/bin/init-agent-project"
+printf 'N\nN\nN\n' | bash "$ROOT/bin/init-agent-project" viasym "$ROOT" >/dev/null 2>&1
+[ -x "$ROOT/viasym/.gates/verify.py" ]
+grep -q 'claim integrity gate' "$ROOT/viasym/.githooks/pre-commit"
+
 echo "6) hooks are wired (core.hooksPath) and first commit exists"
 [ "$(git -C "$ROOT/plain" config core.hooksPath)" = ".githooks" ]
 git -C "$ROOT/plain" rev-parse HEAD >/dev/null
