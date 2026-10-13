@@ -82,6 +82,8 @@ mkdir -p "$PROBE/data" "$PROBE/tools" "$PROBE/.gates"
 cp "$G/no_hardcoding.py" "$G/_baseline.py" "$PROBE/.gates/"   # gate + its baseline helper
 printf 'certs:\n  - "Large Language Models - Example Body"\n' > "$PROBE/data/x.yaml"
 printf "    f'    <li>Large Language Models &mdash; Example Body, 2023</li>'\n" > "$PROBE/tools/gen.py"
+# the gate reads only git-tracked files, so the probe has to be a repository
+(cd "$PROBE" && git init -q && git add -A) >/dev/null 2>&1
 if python3 "$PROBE/.gates/no_hardcoding.py" --check >/dev/null 2>&1; then
   bad "no_hardcoding did NOT block a value restated from data"
 else
@@ -89,6 +91,7 @@ else
 fi
 # and must stay quiet when the generator reads its data instead
 printf "import yaml  # reads data/x.yaml\n" > "$PROBE/tools/gen.py"
+(cd "$PROBE" && git add -A) >/dev/null 2>&1
 if python3 "$PROBE/.gates/no_hardcoding.py" --check >/dev/null 2>&1; then
   ok "no_hardcoding is quiet when nothing is restated"
 else
@@ -115,6 +118,7 @@ mkdir -p "$BPROBE/.gates" "$BPROBE/data" "$BPROBE/tools"
 cp "$G/no_hardcoding.py" "$G/_baseline.py" "$BPROBE/.gates/"
 printf 'certs:\n  - "An Old Finding - Example Body"\n' > "$BPROBE/data/x.yaml"
 printf "    f'<li>An Old Finding &mdash; Example Body, 2023</li>'\n" > "$BPROBE/tools/gen.py"
+(cd "$BPROBE" && git init -q && git add -A) >/dev/null 2>&1
 python3 "$BPROBE/.gates/no_hardcoding.py" --baseline >/dev/null 2>&1
 if python3 "$BPROBE/.gates/no_hardcoding.py" --check >/dev/null 2>&1; then
   ok "baseline accepts a finding that predates the gate"
@@ -123,6 +127,7 @@ else
 fi
 printf 'certs:\n  - "An Old Finding - Example Body"\n  - "A New Finding - Other Body"\n' > "$BPROBE/data/x.yaml"
 printf "    f'<li>An Old Finding &mdash; Example Body, 2023</li>'\n    f'<li>A New Finding &mdash; Other Body</li>'\n" > "$BPROBE/tools/gen.py"
+(cd "$BPROBE" && git add -A) >/dev/null 2>&1
 if python3 "$BPROBE/.gates/no_hardcoding.py" --check >/dev/null 2>&1; then
   bad "baseline swallowed a NEW finding"
 else
