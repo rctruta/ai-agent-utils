@@ -4,12 +4,17 @@
 set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 G="$ROOT/.gates"
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
+# A repository may adopt some gates and not others — this one already had a
+# claim gate of its own, so it took only the two new ones. A probe for a gate
+# that is not installed is skipped, not failed.
+have() { [ -f "$G/$1" ] || { echo "  SKIP  $1 not installed here"; SKIP=$((SKIP+1)); return 1; }; }
 ok()   { echo "  PASS  $1"; PASS=$((PASS+1)); }
 bad()  { echo "  FAIL  $1"; FAIL=$((FAIL+1)); }
 
 echo "Proving the gates fire..."
 
+if have scan.py; then
 # 1. scan.py must BLOCK a banned claim
 TMP="$ROOT/.gates/.probe.md"
 cp "$G/FACTS.yaml" "$G/FACTS.yaml.bak"
@@ -31,6 +36,9 @@ else
 fi
 rm -f "$TMP"
 
+fi
+
+if have verify.py; then
 # 3. verify.py must FAIL a fact whose source does not support it.
 # Written as a complete file so it does not depend on where sections sit.
 cp "$G/FACTS.yaml" "$G/FACTS.yaml.bak"
@@ -69,6 +77,8 @@ else
 fi
 rm -f "$G/checkpoints/probe_good."* 2>/dev/null || true
 
+fi
+
 # 6. the pre-commit hook must exist and be executable
 if [ -x "$ROOT/.githooks/pre-commit" ]; then
   ok "pre-commit hook present and executable"
@@ -76,6 +86,7 @@ else
   bad "pre-commit hook missing or not executable"
 fi
 
+if have no_hardcoding.py; then
 # 7. no_hardcoding must BLOCK a value that a data file already holds
 PROBE="$ROOT/.gates/.probe"
 mkdir -p "$PROBE/data" "$PROBE/tools" "$PROBE/.gates"
@@ -99,6 +110,9 @@ else
 fi
 rm -rf "$PROBE"
 
+fi
+
+if have no_local_paths.py; then
 # 8. no_local_paths must BLOCK one machine's absolute path in a tracked file
 LPROBE="$ROOT/.gates/.lprobe"
 mkdir -p "$LPROBE/.gates"
@@ -116,6 +130,9 @@ else
 fi
 rm -rf "$LPROBE"
 
+fi
+
+if have no_hardcoding.py; then
 # 9. the baseline must accept old findings and still block new ones. This is
 #    what makes a gate adoptable in a repository that predates it.
 BPROBE="$ROOT/.gates/.bprobe"
@@ -140,6 +157,8 @@ else
 fi
 rm -rf "$BPROBE"
 
+fi
+
 echo
-echo "gates proven: $PASS passed, $FAIL failed"
+echo "gates proven: $PASS passed, $FAIL failed, $SKIP not installed"
 [ "$FAIL" -eq 0 ] || exit 1
