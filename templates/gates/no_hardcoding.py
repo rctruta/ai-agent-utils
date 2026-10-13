@@ -33,6 +33,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _baseline
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
@@ -41,6 +44,7 @@ CODE_DIRS = ["tools", "templates", "scripts", "src"]
 DATA_EXTS = (".yaml", ".yml", ".json", ".toml")
 CODE_EXTS = (".py", ".html", ".js", ".mjs", ".sh")
 MIN_LEN = 25
+GATE = "no_hardcoding"
 
 # A value quoted in YAML, or a bare list item: both are things an author wrote
 # as data and a generator should be reading rather than restating.
@@ -94,16 +98,25 @@ def main():
                     hits.append((rel, i, src, sample))
                     break
 
-    if hits:
-        print("HARDCODED DATA IN CODE:\n")
-        for rel, i, src, sample in hits:
-            print(f"  {rel}:{i}")
-            print(f"      repeats a value from {src}: {sample}")
-        print("\nThe data file is the source. Read it; do not restate it.\n")
-    else:
-        print("No data values hardcoded in code.")
+    # The key is the file plus the value, never the line number: a line number
+    # moves when anything above it changes and the baseline goes stale.
+    found = {f"{rel}\t{normalise(sample)}":
+             f"{rel}:{i}\n      repeats a value from {src}: {sample}"
+             for rel, i, src, sample in hits}
 
-    if "--check" in sys.argv and hits:
+    if "--baseline" in sys.argv:
+        out = _baseline.save(ROOT, GATE, found,
+                             f"{len(found)} finding(s) at adoption")
+        print(f"Baselined {len(found)} finding(s) -> {os.path.relpath(out, ROOT)}")
+        return
+
+    new, old = _baseline.split(ROOT, GATE, found)
+    blocking = _baseline.report(
+        GATE, new, old,
+        "The data file is the source. Read it; do not restate it.\n"
+        "To accept the current state instead: .gates/no_hardcoding.py --baseline")
+
+    if "--check" in sys.argv and blocking:
         sys.exit(1)
 
 

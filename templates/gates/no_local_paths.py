@@ -24,6 +24,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _baseline
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
@@ -39,6 +42,7 @@ SKIP_BASENAMES = {os.path.basename(__file__)}
 SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "__pycache__",
              "dist", "build", "site-packages", ".pytest_cache"}
 # An allowlist exists so an exemption is a decision in the diff, never silence.
+GATE = "no_local_paths"
 ALLOW = [
     # "docs/setup.md",   # explains where to clone, intentionally absolute
 ]
@@ -78,16 +82,21 @@ def main():
                     hits.append((rel, i, label, m.group(0)))
                     break
 
-    if hits:
-        print("LOCAL PATHS IN TRACKED FILES:\n")
-        for rel, i, label, found in hits:
-            print(f"  {rel}:{i}  {label}  {found}")
-        print("\nUse a path relative to the repository root, or read it from\n"
-              "configuration. If one is deliberate, add it to ALLOW with a reason.\n")
-    else:
-        print("No local paths in tracked files.")
+    found = {f"{rel}\t{path}": f"{rel}:{i}  {label}  {path}"
+             for rel, i, label, path in hits}
 
-    if "--check" in sys.argv and hits:
+    if "--baseline" in sys.argv:
+        out = _baseline.save(ROOT, GATE, found, f"{len(found)} finding(s) at adoption")
+        print(f"Baselined {len(found)} finding(s) -> {os.path.relpath(out, ROOT)}")
+        return
+
+    new, old = _baseline.split(ROOT, GATE, found)
+    blocking = _baseline.report(
+        GATE, new, old,
+        "Use a path relative to the repository root, or read it from configuration.\n"
+        "To accept the current state instead: .gates/no_local_paths.py --baseline")
+
+    if "--check" in sys.argv and blocking:
         sys.exit(1)
 
 
