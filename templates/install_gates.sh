@@ -19,6 +19,14 @@ if [ -f "$ROOT/.gates/verify.py" ]; then
     "$PY" "$ROOT/.gates/scan.py" --check --quiet "$ROOT" || {
       echo "  -> A banned claim appears in a staged file. See .gates/FACTS.yaml." >&2
       exit 1; }
+    "$PY" "$ROOT/.gates/no_local_paths.py" --check || {
+      echo "  -> A tracked file carries this machine's absolute path." >&2
+      exit 1; }
+    if [ -d "$ROOT/data" ]; then
+      "$PY" "$ROOT/.gates/no_hardcoding.py" --check || {
+        echo "  -> Code restates a value its data file already holds." >&2
+        exit 1; }
+    fi
   fi
 fi
 GATEHOOK

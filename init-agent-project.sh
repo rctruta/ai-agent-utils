@@ -379,7 +379,7 @@ git init -q
 if [ "$WANT_GATES" = "1" ] && [ -d "$SCRIPT_DIR/templates/gates" ]; then
   mkdir -p .gates
   cp -R "$SCRIPT_DIR/templates/gates/." .gates/
-  chmod +x .gates/verify.py .gates/scan.py .gates/checkpoint.sh .gates/tests/prove_gates.sh 2>/dev/null || true
+  chmod +x .gates/verify.py .gates/scan.py .gates/no_hardcoding.py .gates/no_local_paths.py .gates/checkpoint.sh .gates/tests/prove_gates.sh 2>/dev/null || true
   printf '.gates/checkpoints/\n.gates/ledger.jsonl\n' >> .gitignore
   sh "$SCRIPT_DIR/templates/install_gates.sh" || true
   chmod +x .githooks/pre-commit .githooks/pre-push 2>/dev/null || true

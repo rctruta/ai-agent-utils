@@ -76,6 +76,38 @@ else
   bad "pre-commit hook missing or not executable"
 fi
 
+# 7. no_hardcoding must BLOCK a value that a data file already holds
+PROBE="$ROOT/.gates/.probe"
+mkdir -p "$PROBE/data" "$PROBE/tools" "$PROBE/.gates"
+cp "$G/no_hardcoding.py" "$PROBE/.gates/"   # the gate resolves its root from its own path
+printf 'certs:\n  - "Large Language Models - Example Body"\n' > "$PROBE/data/x.yaml"
+printf "    f'    <li>Large Language Models &mdash; Example Body, 2023</li>'\n" > "$PROBE/tools/gen.py"
+if python3 "$PROBE/.gates/no_hardcoding.py" --check >/dev/null 2>&1; then
+  bad "no_hardcoding did NOT block a value restated from data"
+else
+  ok "no_hardcoding blocks a value restated from data"
+fi
+# and must stay quiet when the generator reads its data instead
+printf "import yaml  # reads data/x.yaml\n" > "$PROBE/tools/gen.py"
+if python3 "$PROBE/.gates/no_hardcoding.py" --check >/dev/null 2>&1; then
+  ok "no_hardcoding is quiet when nothing is restated"
+else
+  bad "no_hardcoding fired on a clean tree"
+fi
+rm -rf "$PROBE"
+
+# 8. no_local_paths must BLOCK one machine's absolute path in a tracked file
+LPROBE="$ROOT/.gates/.lprobe"
+mkdir -p "$LPROBE/.gates"
+cp "$G/no_local_paths.py" "$LPROBE/.gates/"
+(cd "$LPROBE" && git init -q && printf 'OUT = "/Users/someone/Projects/theirs/README.md"\n' > w.py && git add -A) >/dev/null 2>&1
+if python3 "$LPROBE/.gates/no_local_paths.py" --check >/dev/null 2>&1; then
+  bad "no_local_paths did NOT block a home path"
+else
+  ok "no_local_paths blocks a home path in a tracked file"
+fi
+rm -rf "$LPROBE"
+
 echo
 echo "gates proven: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1

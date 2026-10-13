@@ -16,7 +16,12 @@ ROOT = os.path.dirname(HERE)
 FACTS = os.path.join(HERE, "FACTS.yaml")
 
 EXTS = (".txt", ".md", ".html", ".rst", ".tex")
-SKIP_DIRS = {".git", ".gates", "node_modules", "venv", ".venv", "assets",
+# .gates is deliberately NOT skipped. A gate that exempts its own directory
+# cannot see what it is carrying: a privacy gate written after a real address
+# leaked kept that address in its own docstring for two weeks, because the file
+# was in its own skip list. The escape valve is `allow:` in FACTS.yaml, which is
+# a decision visible in the diff rather than an invisible exemption.
+SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "assets",
              "dist", "build", "__pycache__", "site-packages"}
 
 
