@@ -103,7 +103,12 @@ rm -rf "$PROBE"
 LPROBE="$ROOT/.gates/.lprobe"
 mkdir -p "$LPROBE/.gates"
 cp "$G/no_local_paths.py" "$G/_baseline.py" "$LPROBE/.gates/"
-(cd "$LPROBE" && git init -q && printf 'OUT = "/Users/someone/Projects/theirs/README.md"\n' > w.py && git add -A) >/dev/null 2>&1
+# The planted path is assembled at runtime. Written literally, this file would
+# itself be a violation — and it is installed into every seeded project, so it
+# blocked the first commit of a fresh one. A fixture must not be
+# indistinguishable from the thing it tests for.
+HOMEISH="/U""sers/someone/Projects/theirs/README.md"
+(cd "$LPROBE" && git init -q && printf 'OUT = "%s"\n' "$HOMEISH" > w.py && git add -A) >/dev/null 2>&1
 if python3 "$LPROBE/.gates/no_local_paths.py" --check >/dev/null 2>&1; then
   bad "no_local_paths did NOT block a home path"
 else
