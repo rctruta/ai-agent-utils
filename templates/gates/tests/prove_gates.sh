@@ -76,6 +76,70 @@ else
   bad "pre-commit hook missing or not executable"
 fi
 
+# 7. no_hardcoding must BLOCK a value that a data file already holds
+PROBE="$ROOT/.gates/.probe"
+mkdir -p "$PROBE/data" "$PROBE/tools" "$PROBE/.gates"
+cp "$G/no_hardcoding.py" "$G/_baseline.py" "$PROBE/.gates/"   # gate + its baseline helper
+printf 'certs:\n  - "Large Language Models - Example Body"\n' > "$PROBE/data/x.yaml"
+printf "    f'    <li>Large Language Models &mdash; Example Body, 2023</li>'\n" > "$PROBE/tools/gen.py"
+# the gate reads only git-tracked files, so the probe has to be a repository
+(cd "$PROBE" && git init -q && git add -A) >/dev/null 2>&1
+if python3 "$PROBE/.gates/no_hardcoding.py" --check >/dev/null 2>&1; then
+  bad "no_hardcoding did NOT block a value restated from data"
+else
+  ok "no_hardcoding blocks a value restated from data"
+fi
+# and must stay quiet when the generator reads its data instead
+printf "import yaml  # reads data/x.yaml\n" > "$PROBE/tools/gen.py"
+(cd "$PROBE" && git add -A) >/dev/null 2>&1
+if python3 "$PROBE/.gates/no_hardcoding.py" --check >/dev/null 2>&1; then
+  ok "no_hardcoding is quiet when nothing is restated"
+else
+  bad "no_hardcoding fired on a clean tree"
+fi
+rm -rf "$PROBE"
+
+# 8. no_local_paths must BLOCK one machine's absolute path in a tracked file
+LPROBE="$ROOT/.gates/.lprobe"
+mkdir -p "$LPROBE/.gates"
+cp "$G/no_local_paths.py" "$G/_baseline.py" "$LPROBE/.gates/"
+# The planted path is assembled at runtime. Written literally, this file would
+# itself be a violation — and it is installed into every seeded project, so it
+# blocked the first commit of a fresh one. A fixture must not be
+# indistinguishable from the thing it tests for.
+HOMEISH="/U""sers/someone/Projects/theirs/README.md"
+(cd "$LPROBE" && git init -q && printf 'OUT = "%s"\n' "$HOMEISH" > w.py && git add -A) >/dev/null 2>&1
+if python3 "$LPROBE/.gates/no_local_paths.py" --check >/dev/null 2>&1; then
+  bad "no_local_paths did NOT block a home path"
+else
+  ok "no_local_paths blocks a home path in a tracked file"
+fi
+rm -rf "$LPROBE"
+
+# 9. the baseline must accept old findings and still block new ones. This is
+#    what makes a gate adoptable in a repository that predates it.
+BPROBE="$ROOT/.gates/.bprobe"
+mkdir -p "$BPROBE/.gates" "$BPROBE/data" "$BPROBE/tools"
+cp "$G/no_hardcoding.py" "$G/_baseline.py" "$BPROBE/.gates/"
+printf 'certs:\n  - "An Old Finding - Example Body"\n' > "$BPROBE/data/x.yaml"
+printf "    f'<li>An Old Finding &mdash; Example Body, 2023</li>'\n" > "$BPROBE/tools/gen.py"
+(cd "$BPROBE" && git init -q && git add -A) >/dev/null 2>&1
+python3 "$BPROBE/.gates/no_hardcoding.py" --baseline >/dev/null 2>&1
+if python3 "$BPROBE/.gates/no_hardcoding.py" --check >/dev/null 2>&1; then
+  ok "baseline accepts a finding that predates the gate"
+else
+  bad "baseline did NOT accept a pre-existing finding"
+fi
+printf 'certs:\n  - "An Old Finding - Example Body"\n  - "A New Finding - Other Body"\n' > "$BPROBE/data/x.yaml"
+printf "    f'<li>An Old Finding &mdash; Example Body, 2023</li>'\n    f'<li>A New Finding &mdash; Other Body</li>'\n" > "$BPROBE/tools/gen.py"
+(cd "$BPROBE" && git add -A) >/dev/null 2>&1
+if python3 "$BPROBE/.gates/no_hardcoding.py" --check >/dev/null 2>&1; then
+  bad "baseline swallowed a NEW finding"
+else
+  ok "baseline still blocks a new finding"
+fi
+rm -rf "$BPROBE"
+
 echo
 echo "gates proven: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1

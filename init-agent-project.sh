@@ -304,6 +304,19 @@ jobs:
           uv venv
           uv pip install -r requirements.txt
           .venv/bin/pytest
+
+  gates:  # the hooks are local policy and bypassable; this copy is not
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          [ -d .gates ] || { echo "no .gates in this repository"; exit 0; }
+          for g in .gates/*.py; do
+            case "$(basename "$g")" in _*) continue;; esac
+            echo "--- $(basename "$g")"
+            python3 "$g" --check
+          done
+          sh .gates/tests/prove_gates.sh
 EOF
 
   # Venv initialization
@@ -379,7 +392,7 @@ git init -q
 if [ "$WANT_GATES" = "1" ] && [ -d "$SCRIPT_DIR/templates/gates" ]; then
   mkdir -p .gates
   cp -R "$SCRIPT_DIR/templates/gates/." .gates/
-  chmod +x .gates/verify.py .gates/scan.py .gates/checkpoint.sh .gates/tests/prove_gates.sh 2>/dev/null || true
+  chmod +x .gates/verify.py .gates/scan.py .gates/no_hardcoding.py .gates/no_local_paths.py .gates/checkpoint.sh .gates/tests/prove_gates.sh 2>/dev/null || true
   printf '.gates/checkpoints/\n.gates/ledger.jsonl\n' >> .gitignore
   sh "$SCRIPT_DIR/templates/install_gates.sh" || true
   chmod +x .githooks/pre-commit .githooks/pre-push 2>/dev/null || true
