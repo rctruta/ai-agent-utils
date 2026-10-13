@@ -96,6 +96,8 @@ def main():
         "Use a path relative to the repository root, or read it from configuration.\n"
         "To accept the current state instead: .gates/no_local_paths.py --baseline")
 
+    _baseline.record(ROOT, GATE, len(new), len(old), blocking)
+
     if "--check" in sys.argv and blocking:
         sys.exit(1)
 

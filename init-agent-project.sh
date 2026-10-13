@@ -304,6 +304,19 @@ jobs:
           uv venv
           uv pip install -r requirements.txt
           .venv/bin/pytest
+
+  gates:  # the hooks are local policy and bypassable; this copy is not
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          [ -d .gates ] || { echo "no .gates in this repository"; exit 0; }
+          for g in .gates/*.py; do
+            case "$(basename "$g")" in _*) continue;; esac
+            echo "--- $(basename "$g")"
+            python3 "$g" --check
+          done
+          sh .gates/tests/prove_gates.sh
 EOF
 
   # Venv initialization

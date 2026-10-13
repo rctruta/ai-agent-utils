@@ -78,6 +78,44 @@ commits coming is pure cost.
 
 ---
 
+## A hook is local policy. An Action is not.
+
+Every gate here runs in a git hook, which means it runs on one laptop and is
+bypassed by `--no-verify`, by committing from another machine, and by anyone
+else's clone. That is by design — a hook is fast and it is honest about being
+local — but it is not the whole story.
+
+**The rule: a gate that matters belongs in both places.** The hook catches it
+before the commit; the Action catches it when the hook did not run. Projects
+seeded by `init-agent-project` get a `gates` job in `.github/workflows/ci.yml`
+that runs every gate and then `prove_gates.sh`.
+
+### When a private repository becomes public
+
+Going public changes what the gates are for. Do these before flipping the
+switch, not after:
+
+1. **Hooks become Actions.** A private repository can live on local hooks
+   because one person commits to it. A public one has readers, forks and
+   contributors, none of whom have your hooks.
+2. **Run every gate over the full history, not just the tip.** A secret removed
+   in the tip is still in the history, and so is a local path.
+3. **Check the publication boundary itself** if the repository has one — an
+   export script, an excluded directory. Verify against the published tree, not
+   against the script's own output.
+4. **Check that Actions can actually run.** A workflow on a repository whose
+   Actions minutes are exhausted never runs and never says so.
+
+## Structural change means the README changes
+
+A gate cannot check this, so it is written down: when the shape of a repository
+changes — a new directory, a renamed artifact, a build step added or removed, a
+data file that becomes the source of something it was not — the README in that
+repository is part of the change, not a follow-up.
+
+The test is a stranger cloning it an hour later. If what they read no longer
+describes what they got, the change is not finished.
+
 ## Where the recursion stops
 
 `prove_gates.sh` proves every gate fires. Nothing proves `prove_gates.sh`.
@@ -88,6 +126,37 @@ verify by reading it. If the test harness needed its own test framework, the
 chain would not terminate.
 
 ---
+
+## What this measures, and where the evidence lives
+
+A loop that cannot be measured is a story about a loop. Four things are worth
+counting, and the rest is noise:
+
+| what | where it lives | committed? |
+|---|---|---|
+| **why a gate exists** | the registry above — one row, one incident | yes |
+| **who has it** | `.gates/VERSION` per repository; `check_version.py` compares | yes |
+| **the backlog** | `.gates/baseline/<gate>.txt` — findings accepted at adoption | yes |
+| **what it caught** | `.gates/ledger.jsonl` — one line per run, blocked or passed | no, local and high-volume |
+
+The aggregate is a dated snapshot, and it is the artifact to keep:
+
+```sh
+templates/gates/gates_report.sh ~/Projects/* > reports/gates-$(date -u +%F).md
+```
+
+Read it for two things, neither of which can be argued, only counted:
+
+- **A baseline that has not shrunk since adoption** is a backlog nobody is
+  working. That is allowed, but it should be said out loud rather than
+  discovered later.
+- **A gate with no blocks and no open findings** is either prevention working or
+  dead weight. The count alone cannot tell you which — `prove_gates.sh` showing
+  it still fires is what separates them.
+
+The ledger is deliberately not committed: one line per run is noise in a diff,
+and a file the hook writes during a commit is a file that changes the commit.
+The committed record is the registry row, the baseline, and the dated snapshot.
 
 ## Adding a gate
 

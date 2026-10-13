@@ -31,6 +31,7 @@ generators layout:
 import html as html_mod
 import os
 import re
+import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -62,6 +63,33 @@ def normalise(s):
     return s.strip(" .,;:").lower()
 
 
+# A data file that declares its own generator is OUTPUT, not source: the code
+# defines those values and emits them. Flagging it inverts the relationship and
+# would push an author to move a definition into a file that is overwritten on
+# the next run. Observed 2026-10-13 against a ground-truth JSON emitted by the
+# script that defines it — the gate was wrong, not the repository.
+GENERATED = re.compile(r'generated[_ ]by|@generated|do not edit', re.I)
+
+
+def is_generated(text):
+    return bool(GENERATED.search(text[:600]))
+
+
+def _tracked():
+    """Only files git tracks. An untracked artifact is not part of the
+    repository, so it cannot be a second copy of anything in it — a ground-truth
+    JSON sitting in a gitignored data/ directory was flagged on that mistake."""
+    try:
+        out = subprocess.run(["git", "-C", ROOT, "ls-files", "-z"],
+                             capture_output=True, text=True, timeout=30).stdout
+        return {os.path.join(ROOT, f) for f in out.split("\0") if f}
+    except Exception:
+        return None
+
+
+TRACKED = _tracked()
+
+
 def walk(dirs, exts):
     for d in dirs:
         base = os.path.join(ROOT, d)
@@ -70,14 +98,20 @@ def walk(dirs, exts):
         for root, subs, files in os.walk(base):
             subs[:] = [s for s in subs if not s.startswith(".") and s != "__pycache__"]
             for f in files:
-                if f.endswith(exts):
-                    yield os.path.join(root, f)
+                if not f.endswith(exts):
+                    continue
+                full = os.path.join(root, f)
+                if TRACKED is not None and full not in TRACKED:
+                    continue
+                yield full
 
 
 def main():
     values = {}
     for fp in walk(DATA_DIRS, DATA_EXTS):
         text = open(fp, errors="ignore").read()
+        if is_generated(text):
+            continue
         for m in VALUE.finditer(text):
             raw = (m.group(1) or m.group(2) or "").strip()
             n = normalise(raw)
@@ -115,6 +149,8 @@ def main():
         GATE, new, old,
         "The data file is the source. Read it; do not restate it.\n"
         "To accept the current state instead: .gates/no_hardcoding.py --baseline")
+
+    _baseline.record(ROOT, GATE, len(new), len(old), blocking)
 
     if "--check" in sys.argv and blocking:
         sys.exit(1)
