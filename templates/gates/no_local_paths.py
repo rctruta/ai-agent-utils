@@ -39,6 +39,10 @@ PATTERNS = [
 # Where a local path is the subject rather than a dependency: a gate that
 # reports them has to be able to name them.
 SKIP_BASENAMES = {os.path.basename(__file__)}
+# A baseline records the offending string in order to accept it, which makes
+# the record itself a violation. Excluding the gate's own bookkeeping is not a
+# self-exemption: everything in there has already been reported, by definition.
+SKIP_PREFIXES = (".gates/baseline/",)
 SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "__pycache__",
              "dist", "build", "site-packages", ".pytest_cache"}
 # An allowlist exists so an exemption is a decision in the diff, never silence.
@@ -67,6 +71,8 @@ def main():
         if rel in ALLOW or os.path.basename(rel) in SKIP_BASENAMES:
             continue
         if any(part in SKIP_DIRS for part in rel.split(os.sep)):
+            continue
+        if rel.startswith(SKIP_PREFIXES):
             continue
         path = os.path.join(ROOT, rel)
         if not os.path.isfile(path):
