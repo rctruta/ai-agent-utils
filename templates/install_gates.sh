@@ -210,4 +210,13 @@ then fix that.
 
 Never route around it: no `--no-verify`, no `--admin`, no deleting the check.
 If the gate is genuinely wrong, fix the gate and prove the fix.
+
+## Documentation Triggers (When to Update README)
+Do NOT update the README for internal bug fixes, refactorings, or minor code edits.
+Review and update README and agent instructions ONLY when a change crosses an external boundary:
+1. CLI / Entrypoints: A command, CLI flag, or runner script is added, renamed, or removed.
+2. Dependencies & Toolchain: A dependency, interpreter version, or external tool requirement is changed in pyproject.toml / package.json.
+3. Environment & Configuration: A new environment variable, configuration table, or setup prerequisite is introduced.
+4. Repository Layout: A top-level directory or primary data pipeline is added, moved, or removed.
+If none of these boundaries was crossed, leave the README untouched.
 AGENTSEOF
