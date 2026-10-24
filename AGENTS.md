@@ -5,6 +5,14 @@
 
 ---
 
+## Standard Engineering Practices (No One-Offs)
+
+- All code, scripts, linters, and configurations must adhere to standard engineering practices.
+- Do not create ad-hoc, brittle single-use scripts, custom regex parsers, or bespoke governance mechanisms where industry-standard tooling exists (e.g., use `pre-commit`, `ruff`, `gitleaks`, `pytest`, `unittest`).
+- **Gate engines are immutable mechanism:** The scripts in `.gates/` are generic engines. All project-specific configuration (paths, thresholds, exclusions) must be declared in `pyproject.toml` (under `[tool.gates]`) or `.gates.toml`. Never edit the Python code in `.gates/` to change project layout or policy.
+
+---
+
 ## 1. Local & Remote Gates
 
 - **Local Gate (`.githooks/pre-push`):**
@@ -28,8 +36,8 @@ messages and pull-request text, can be read by anyone and stays in history.
 - **Stage files by name.** Never `git add -A` or `git add .`. Before every
   commit, read `git status` and `git diff --staged` and confirm each path is
   meant to be public.
-- **Private material stays outside the repository.** Personal material and
-  unpublished work are never copied in, referenced by
+- **Private material stays outside the repository.** Personal notes, summaries of
+  chat conversations, local machine paths, and unpublished work are never copied in, referenced by
   absolute path, or quoted in code, comments, tests, commit messages or PR
   text. Code that needs private data reads its location from an environment
   variable.

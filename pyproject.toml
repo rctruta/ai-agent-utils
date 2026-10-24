@@ -23,3 +23,14 @@ packages = ["."]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.gates.no_hardcoding]
+min_length = 25
+data_dirs = ["data"]
+code_dirs = ["tools", "src", "templates"]
+data_extensions = [".yaml", ".yml", ".json", ".toml"]
+code_extensions = [".py", ".html", ".js", ".mjs", ".sh"]
+exclude = []
+
+[tool.gates.claim_integrity]
+facts_file = "templates/gates/FACTS.yaml"

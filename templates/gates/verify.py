@@ -12,7 +12,12 @@ import os, re, sys, subprocess, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-FACTS = os.path.join(HERE, "FACTS.yaml")
+
+sys.path.insert(0, HERE)
+import _config
+
+ROOT, config = _config.load_gate_config(HERE, "claim_integrity", ["facts_file"])
+FACTS = os.path.join(ROOT, config["facts_file"]) if not os.path.isabs(config["facts_file"]) else config["facts_file"]
 
 
 def load():

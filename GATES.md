@@ -287,7 +287,10 @@ snapshot.
 1. Write it in `templates/gates/`. Stdlib only. `--check` exits 1; bare run
    reports.
 2. Support the baseline if it can fire on existing code — import `_baseline`.
-3. Add a case to `tests/prove_gates.sh` in **both** directions: fires on a
+3. If the gate configures project paths, files, or thresholds, load them with `_config`
+   from `pyproject.toml` or `.gates.toml` under `[tool.gates.<name>]`. Do not
+   hardcode project-specific paths or fallback defaults in the gate engine.
+4. Add a case to `tests/prove_gates.sh` in **both** directions: fires on a
    planted violation, quiet on a clean tree.
 4. Add a row to the registry above, with the failure mode it prevents.
 5. Bump the version at the top of this file and in `templates/gates/VERSION`.

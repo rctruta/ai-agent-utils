@@ -2,9 +2,6 @@
 
 *A pragmatic developer toolkit for human-agent pair programming: automated git guardrails, pre-commit enforcement, and explicit agent contracts that keep coding delegates disciplined.*
 
-Selected for the **[XERJ Corpus Hub](https://github.com/xerj-org/xerj)** as a worked reference implementation for AI coding agent guardrails.
-
----
 
 ## The Philosophy: Gates, Not Words
 
@@ -62,6 +59,25 @@ Specialized automated checks designed specifically for common agent failure mode
 | `no_hardcoding.py` | Refuses code that duplicates literals that already exist in a structured data file (`data/*.yaml`). |
 | `verify.py` | Validates that claims and numbers cited in documentation match registered ground-truth sources (`FACTS.yaml`). |
 | `gitleaks` | Detects accidentally committed credentials and absolute home-directory paths. |
+
+#### Declarative TOML Configuration
+
+Gate engines are immutable mechanism. All project-specific configuration is declared in `pyproject.toml` (or `.gates.toml`) and loaded using Python's built-in `tomllib` with zero external dependencies:
+
+```toml
+[tool.gates.no_hardcoding]
+min_length = 25
+data_dirs = ["data"]
+code_dirs = ["tools", "src", "templates"]
+data_extensions = [".yaml", ".yml", ".json", ".toml"]
+code_extensions = [".py", ".html", ".js", ".mjs", ".sh"]
+exclude = []
+
+[tool.gates.claim_integrity]
+facts_file = ".gates/FACTS.yaml"
+```
+
+If required configuration is missing, the gate fails fast and informs the author rather than running on hidden in-code assumptions.
 
 ---
 

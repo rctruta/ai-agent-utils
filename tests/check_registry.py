@@ -46,6 +46,7 @@ TOOLS = {
     "gates_report.sh":   "reports what each gate has found, as a snapshot",
     "survey.sh":         "reports what a gate WOULD find, before adopting it",
     "_baseline.py":      "shared library; adopts a gate without breaking a repo",
+    "_config.py":        "shared library; declarative TOML configuration loader for gates",
 }
 
 # Data a gate reads, not a script.

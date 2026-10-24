@@ -12,6 +12,39 @@ cp "$TEMPLATES/pre-commit-config.yaml" .pre-commit-config.yaml
 cp "$TEMPLATES/ruff.toml" ruff.toml
 cp "$TEMPLATES/gitleaks.toml" .gitleaks.toml
 
+if [ -f pyproject.toml ]; then
+  if ! grep -q '\[tool\.gates' pyproject.toml; then
+    cat >> pyproject.toml <<'GATESCONF'
+
+[tool.gates.no_hardcoding]
+min_length = 25
+data_dirs = ["data"]
+code_dirs = ["tools", "src", "templates"]
+data_extensions = [".yaml", ".yml", ".json", ".toml"]
+code_extensions = [".py", ".html", ".js", ".mjs", ".sh"]
+exclude = []
+
+[tool.gates.claim_integrity]
+facts_file = ".gates/FACTS.yaml"
+GATESCONF
+  fi
+else
+  if [ ! -f .gates.toml ]; then
+    cat > .gates.toml <<'GATESCONF'
+[tool.gates.no_hardcoding]
+min_length = 25
+data_dirs = ["data"]
+code_dirs = ["tools", "src", "templates"]
+data_extensions = [".yaml", ".yml", ".json", ".toml"]
+code_extensions = [".py", ".html", ".js", ".mjs", ".sh"]
+exclude = []
+
+[tool.gates.claim_integrity]
+facts_file = ".gates/FACTS.yaml"
+GATESCONF
+  fi
+fi
+
 cat >> .githooks/pre-commit <<'GATEHOOK'
 
 # --- pre-commit framework --------------------------------------------------
@@ -102,6 +135,10 @@ Tag the known-good commit, with the command that proves it in the message:
 Then "it worked before" is a recorded command rather than a memory, and
 nothing extra has to be installed or kept working.
 
+## Declarative Gate Configuration
+
+Gate engines in `.gates/` are immutable mechanism. Project paths, thresholds, and exclusions are configured in `pyproject.toml` (under `[tool.gates]`) or `.gates.toml`. Never edit the Python code in `.gates/` to change project behavior.
+
 ## Prove the gates still fire
 
     .gates/tests/prove_gates.sh
@@ -115,6 +152,7 @@ alwaysApply: true
 Facts must be registered in .gates/FACTS.yaml and pass python3 .gates/verify.py
 Banned claims listed in that file block commits.
 Before changing a working configuration, tag the known-good commit with the proving command in its message.
+Gate configuration is declared in pyproject.toml or .gates.toml. Do not edit scripts in .gates/.
 The gates are git hooks; they run regardless of which agent is active.
 CURSOREOF
 

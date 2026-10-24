@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""
-no_hardcoding — refuse code that repeats a value its data file already holds.
+"""no_hardcoding — refuse code that repeats a value its data file already holds.
 
   .gates/no_hardcoding.py              report
   .gates/no_hardcoding.py --check      exit 1 on any hit
+  .gates/no_hardcoding.py --baseline   accept today's findings
 
 The failure this exists for: a generator emits a literal copy of values that
 also sit in the data file it is supposed to read. Editing the data then changes
@@ -14,18 +14,8 @@ gate.
 What it does: collects values out of the data files, normalises them, and
 refuses any that also appear inside the code that is supposed to render them.
 
-Normalisation matters more than the comparison. A value in the data and its
-copy in the code differ by an HTML entity, a dash, a case change or a trailing
-year — unequal as strings, identical to a reader. So: entities decoded, dashes
-unified, case and whitespace flattened, and a trailing year dropped before
-comparing.
-
-Configure it where it differs per project — the defaults suit a `data/` plus
-generators layout:
-
-  DATA_DIRS   where values live
-  CODE_DIRS   where they must not be repeated
-  MIN_LEN     shorter strings collide by accident; 25 is a reasonable floor
+All configuration is strictly declarative. It reads from [tool.gates.no_hardcoding]
+in pyproject.toml or .gates.toml. If required keys are not declared, it fails fast.
 """
 import html as html_mod
 import os
@@ -35,16 +25,28 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _baseline
+import _config
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-
-DATA_DIRS = ["data"]
-CODE_DIRS = ["tools", "templates", "scripts", "src"]
-DATA_EXTS = (".yaml", ".yml", ".json", ".toml")
-CODE_EXTS = (".py", ".html", ".js", ".mjs", ".sh")
-MIN_LEN = 25
 GATE = "no_hardcoding"
+
+REQUIRED_KEYS = [
+    "data_dirs",
+    "code_dirs",
+    "data_extensions",
+    "code_extensions",
+    "min_length",
+]
+
+ROOT, config = _config.load_gate_config(HERE, GATE, REQUIRED_KEYS)
+
+DATA_DIRS = config["data_dirs"]
+CODE_DIRS = config["code_dirs"]
+DATA_EXTS = tuple(config["data_extensions"])
+CODE_EXTS = tuple(config["code_extensions"])
+MIN_LEN = int(config["min_length"])
+EXCLUDE = set(config.get("exclude", []))
 
 # A value quoted in YAML, or a bare list item: both are things an author wrote
 # as data and a generator should be reading rather than restating.
@@ -54,19 +56,14 @@ VALUE = re.compile(r'"([^"\n]{%d,})"|^\s*-\s+(?!-)([^\n#]{%d,})$' % (MIN_LEN, MI
 def normalise(s):
     s = html_mod.unescape(s)
     s = re.sub(r"&[a-z]+;|&#x?\w+;", " ", s)          # entities the unescape missed
-    s = re.sub(r"[‐-―—–-]+", "-", s)         # every dash is one dash
-    s = re.sub(r"[`*_\[\]()<>]", "", s)                # markdown emphasis, links, tags
-    s = s.replace('"', "").replace("'", "")            # a YAML list item keeps its quotes
-    s = re.sub(r",?\s*\b(19|20)\d{2}\b", "", s)         # a year, wherever it sits
+    s = re.sub(r"[‐-―—–-]+", "-", s)                  # every dash is one dash
+    s = re.sub(r"[`*_\[\]()<>]", "", s)               # markdown emphasis, links, tags
+    s = s.replace('"', "").replace("'", "")           # a YAML list item keeps its quotes
+    s = re.sub(r",?\s*\b(19|20)\d{2}\b", "", s)        # a year, wherever it sits
     s = re.sub(r"\s+", " ", s)
     return s.strip(" .,;:").lower()
 
 
-# A data file that declares its own generator is OUTPUT, not source: the code
-# defines those values and emits them. Flagging it inverts the relationship and
-# would push an author to move a definition into a file that is overwritten on
-# the next run. A finding against such a file is the gate being wrong, not the
-# code.
 GENERATED = re.compile(r'generated[_ ]by|@generated|do not edit', re.I)
 
 
@@ -76,8 +73,7 @@ def is_generated(text):
 
 def _tracked():
     """Only files git tracks. An untracked artifact is not part of the
-    repository, so it cannot be a second copy of anything in it — a ground-truth
-    JSON sitting in a gitignored data/ directory was flagged on that mistake."""
+    repository, so it cannot be a second copy of anything in it."""
     try:
         out = subprocess.run(["git", "-C", ROOT, "ls-files", "-z"],
                              capture_output=True, text=True, timeout=30).stdout
@@ -98,6 +94,9 @@ def walk(dirs, exts):
             subs[:] = [s for s in subs if not s.startswith(".") and s != "__pycache__"]
             for f in files:
                 if not f.endswith(exts):
+                    continue
+                rel_path = os.path.relpath(os.path.join(root, f), ROOT)
+                if rel_path in EXCLUDE or f in EXCLUDE:
                     continue
                 full = os.path.join(root, f)
                 if TRACKED is not None and full not in TRACKED:
@@ -131,8 +130,6 @@ def main():
                     hits.append((rel, i, src, sample))
                     break
 
-    # The key is the file plus the value, never the line number: a line number
-    # moves when anything above it changes and the baseline goes stale.
     found = {f"{rel}\t{normalise(sample)}":
              f"{rel}:{i}\n      repeats a value from {src}: {sample}"
              for rel, i, src, sample in hits}
@@ -155,4 +152,5 @@ def main():
         sys.exit(1)
 
 
-main()
+if __name__ == "__main__":
+    main()

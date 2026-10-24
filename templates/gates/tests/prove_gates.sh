@@ -74,7 +74,15 @@ if have no_hardcoding.py; then
 # 7. no_hardcoding must BLOCK a value that a data file already holds
 PROBE="$ROOT/.gates/.probe"
 mkdir -p "$PROBE/data" "$PROBE/tools" "$PROBE/.gates"
-cp "$G/no_hardcoding.py" "$G/_baseline.py" "$PROBE/.gates/"   # gate + its baseline helper
+cp "$G/no_hardcoding.py" "$G/_baseline.py" "$G/_config.py" "$PROBE/.gates/"
+cat > "$PROBE/.gates.toml" <<'TOML'
+[tool.gates.no_hardcoding]
+min_length = 25
+data_dirs = ["data"]
+code_dirs = ["tools"]
+data_extensions = [".yaml"]
+code_extensions = [".py"]
+TOML
 printf 'certs:\n  - "Large Language Models - Example Body"\n' > "$PROBE/data/x.yaml"
 printf "    f'    <li>Large Language Models &mdash; Example Body, 2023</li>'\n" > "$PROBE/tools/gen.py"
 # the gate reads only git-tracked files, so the probe has to be a repository
@@ -101,7 +109,15 @@ if have no_hardcoding.py; then
 #    what makes a gate adoptable in a repository that predates it.
 BPROBE="$ROOT/.gates/.bprobe"
 mkdir -p "$BPROBE/.gates" "$BPROBE/data" "$BPROBE/tools"
-cp "$G/no_hardcoding.py" "$G/_baseline.py" "$BPROBE/.gates/"
+cp "$G/no_hardcoding.py" "$G/_baseline.py" "$G/_config.py" "$BPROBE/.gates/"
+cat > "$BPROBE/.gates.toml" <<'TOML'
+[tool.gates.no_hardcoding]
+min_length = 25
+data_dirs = ["data"]
+code_dirs = ["tools"]
+data_extensions = [".yaml"]
+code_extensions = [".py"]
+TOML
 printf 'certs:\n  - "An Old Finding - Example Body"\n' > "$BPROBE/data/x.yaml"
 printf "    f'<li>An Old Finding &mdash; Example Body, 2023</li>'\n" > "$BPROBE/tools/gen.py"
 (cd "$BPROBE" && git init -q && git add -A) >/dev/null 2>&1
