@@ -1,0 +1,56 @@
+#!/bin/sh
+# Refuse a dirty tree, and refuse a failing or unrunnable test suite.
+#
+# POSIX sh: git invokes this directly, so it must not depend on a shell or an
+# environment being present.
+set -e
+
+echo "Running pre-push checks..."
+
+# A dirty tree means what is pushed is not what was tested.
+if [ -n "$(git status --porcelain)" ]; then
+  echo "Push aborted: the working tree has uncommitted or untracked changes." >&2
+  echo "  Commit or set them aside first; otherwise what is pushed is not" >&2
+  echo "  what was tested." >&2
+  exit 1
+fi
+
+# The project's own interpreter first, so the suite runs against the
+# environment it was written for rather than whatever is on PATH.
+if [ -x .venv/bin/python ]; then
+  PY=.venv/bin/python
+else
+  PY="$(command -v python3 || true)"
+fi
+
+if [ -z "$PY" ]; then
+  echo "Push aborted: no python3 and no .venv to run the test suite with." >&2
+  echo "  A suite that could not run has not passed." >&2
+  exit 3
+fi
+
+if [ -d tests ]; then
+  if ! "$PY" -c "import pytest" >/dev/null 2>&1; then
+    echo "Push aborted: tests/ exists but pytest is not installed for $PY." >&2
+    echo "  Run: $PY -m pip install pytest" >&2
+    echo "  A suite that could not run has not passed." >&2
+    exit 3
+  fi
+  echo "Running the test suite..."
+  # Exit 5 is "nothing was collected", which is a legitimate state for a
+  # repository whose suite is elsewhere. Any other non-zero code is a failure.
+  set +e
+  "$PY" -m pytest tests/ -q
+  rc=$?
+  set -e
+  [ "$rc" -eq 0 ] || [ "$rc" -eq 5 ] || exit "$rc"
+fi
+
+# The generator checks are this repository's real suite: they seed throwaway
+# projects and assert what the seed produced.
+if [ -f tests/ci_checks.sh ]; then
+  echo "Running the generator checks..."
+  sh tests/ci_checks.sh >/dev/null
+fi
+
+echo "Pre-push checks passed."

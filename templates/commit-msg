@@ -1,0 +1,28 @@
+#!/bin/sh
+# A commit message is public text that no other gate can see.
+#
+# Every check in .gates/ reads the git index. A commit message is a string
+# rather than a file, so a full gate suite and a full test run can pass while
+# the message reaches the host unexamined.
+#
+# This hook gives the message a path, and then reads it.
+set -e
+ROOT=$(git rev-parse --show-toplevel)
+
+# A gate that is installed is a gate that must run. Skipping it because the
+# interpreter is missing reports success for a check that never executed, so
+# both preconditions refuse instead, with exit 3 for "not met".
+[ -f "$ROOT/.gates/check_outbound.py" ] || exit 0
+
+PY=$(command -v python3 || true)
+if [ -z "$PY" ]; then
+  echo "  -> check_outbound.py is installed but python3 is not on PATH." >&2
+  echo "     Not running a declared check is not a pass." >&2
+  exit 3
+fi
+
+"$PY" "$ROOT/.gates/check_outbound.py" --check "$1" || {
+  echo "  -> The commit message is not fit to publish. It is in" >&2
+  echo "     .git/COMMIT_EDITMSG; edit it and commit again." >&2
+  exit 1
+}

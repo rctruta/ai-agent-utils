@@ -1,0 +1,22 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:   # this job name is the required status-check context
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      # A seeded project declares pre-commit and its hook refuses to pass
+      # without it, so the runner is a real dependency of the seed and
+      # therefore of this job.
+      - name: Install pre-commit
+        run: uv tool install pre-commit
+      - name: Run generator checks
+        run: |
+          git config --global user.email "ci@localhost"
+          git config --global user.name "ci"
+          bash tests/ci_checks.sh

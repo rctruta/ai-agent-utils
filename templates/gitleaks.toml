@@ -1,0 +1,20 @@
+# gitleaks configuration, installed as .gitleaks.toml.
+#
+# gitleaks' built-in rules cover credentials: API keys, tokens, private keys.
+# The one rule added here covers a home-directory path, which ties a file to
+# one machine and names the account it came from.
+
+title = "gitleaks defaults plus home-directory paths"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "absolute-home-path"
+description = "An absolute home-directory path in a tracked file"
+regex = '''(?:/Users/|/home/)[A-Za-z0-9._-]+|C:\\Users\\'''
+keywords = ["/users/", "/home/", "c:\\users\\"]
+
+[allowlist]
+description = "The file that defines the rule"
+paths = ['''(^|/)\.?gitleaks\.toml$''']

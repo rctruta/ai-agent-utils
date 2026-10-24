@@ -1,0 +1,47 @@
+# What runs before every commit.
+#
+#   pip install pre-commit         install the runner
+#   pre-commit run --all-files     run everything now
+#   pre-commit autoupdate          move the pinned revs forward
+#
+# This file is installed as .pre-commit-config.yaml. It is invoked from
+# .githooks/pre-commit rather than from .git/hooks, because core.hooksPath
+# points at .githooks and git ignores .git/hooks while it does. There is
+# therefore no `pre-commit install` step.
+#
+# Revisions are pinned. An unpinned hook changes what it refuses without a
+# diff, which makes a passing commit unreproducible.
+#
+# These are the general-purpose checks, identical in every repository.
+# Repository-specific rules belong in the `local` section at the bottom, or
+# in a gate under .gates/ when they need more than a pattern.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-ast                 # every Python file parses
+      - id: detect-private-key
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.2
+    hooks:
+      - id: ruff-check
+        # Report only. A linter that edits code on commit changes files the
+        # author did not open, which is a decision about style rather than a
+        # check for correctness. The rule selection is in ruff.toml.
+        args: [--no-fix]
+
+  # Secrets and machine-specific paths. gitleaks is the standard scanner;
+  # .gitleaks.toml keeps its default rules and adds one for home-directory
+  # paths.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

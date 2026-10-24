@@ -1,0 +1,15 @@
+# Gates the registry has removed, and what covers them now.
+#
+# One basename per line. update_gates.sh deletes these from a repository that
+# still carries them, and reports the hook lines that must go with them.
+#
+# A gate absent from templates/gates/ is ambiguous on its own: it may have been
+# retired, or it may never have existed. This file is the difference, so a
+# removal is a line in a diff rather than a silence.
+#
+# Retired at version 15 -- reimplemented what pre-commit already does, and are
+# now hooks in .pre-commit-config.yaml:
+check_compiles.py
+no_local_paths.py
+no_private_marker.py
+check_voice.py

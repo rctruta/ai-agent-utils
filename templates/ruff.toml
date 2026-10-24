@@ -1,0 +1,25 @@
+# Which lint rules apply.
+#
+# Selected deliberately rather than inherited. Ruff's default set is mostly
+# style, and on an existing codebase it reports enough findings on day one
+# that the check gets switched off. A switched-off check protects nothing.
+#
+#   E9  syntax and IO errors -- the file does not parse or cannot be read
+#   F   pyflakes: undefined names, unused imports, unused locals
+#   B   bugbear: mutable default arguments, bare except, lost tracebacks
+#
+# All three report defects rather than taste, so a finding is worth acting
+# on and the set can be adopted without a grace period.
+#
+# Widening this is a one-line change. The findings a new rule set produces
+# are fixed in the same change -- never suppressed, and never added to an
+# ignore list to make the commit pass.
+
+line-length = 100
+
+[lint]
+select = ["E9", "F", "B"]
+
+[lint.per-file-ignores]
+# Tests assign values to assert on; that is what a test is for.
+"tests/**" = ["F841"]

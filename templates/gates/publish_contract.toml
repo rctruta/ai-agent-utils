@@ -1,0 +1,141 @@
+# What this project publishes, and what each surface requires.
+#
+# Read by .gates/check_publish_contract.py, in the pre-commit hook and in any
+# release workflow. A publishing surface cannot exist without its rules, and
+# cannot lose its defining file without saying so.
+#
+# TOML rather than YAML because tomllib has been in the standard library since
+# Python 3.11, and a gate in this registry must run with no dependencies
+# installed. The YAML version broke init-agent-project outright: a freshly
+# bootstrapped project has no pyyaml, so the gate crashed in the pre-commit
+# hook and the very first commit never happened.
+#
+# WHY THIS GATE EXISTS. Three failures of one shape -- information that was
+# required, was missing, and nothing asked for it:
+#
+#   a registry manifest declaring one version while the package declares
+#   another. A registry validator requires a version that EXISTS and never
+#   compares it to anything, so the stale manifest publishes cleanly and the
+#   public listing describes the wrong release.
+#
+#   the manifest and the ownership token existing only on an unpushed local
+#   branch, so the file defining a live public listing is on one machine and
+#   the release built from the default branch ships without it.
+#
+#   a citation file naming a release several versions old, so every citation
+#   points at the wrong one.
+#
+# HOW A SURFACE IS EVALUATED. `trigger` is the file whose presence means the
+# surface is in play. Four cases, and the two that fail are the point:
+#
+#   live    + trigger present  -> run its requirements and checks
+#   live    + trigger MISSING  -> FAIL. A published surface whose defining file
+#                                 is not in the tree cannot be reproduced.
+#   planned + trigger APPEARS  -> FAIL. The artifact arrived and its rules were
+#                                 never written.
+#   planned + trigger absent   -> silent. Nothing to do yet.
+#
+# The third case is the one that is not standard practice. Normally a
+# package.json appears, nobody has written npm publishing rules, and nothing
+# says so. Here the arrival of the artifact DEMANDS its own requirements, so a
+# surface can be declared years before it exists and still be safe: nobody has
+# to remember, because the gap becomes loud at the moment it starts to matter.
+#
+# Everything below ships `planned` on purpose. A new project publishes nothing.
+# Delete the surfaces that will never apply -- an inventory nobody believes is
+# worse than a short one.
+
+# EDITING NOTE. Do not write `requires = []` or `checks = []` here. TOML makes
+# an inline array immutable, so a later [[surfaces.requires]] block cannot
+# extend it and tomllib raises "cannot mutate immutable namespace". Omit them
+# instead -- the gate treats a missing list as empty -- and add blocks when a
+# surface goes live.
+#
+# The single file holding the version every other file must agree with.
+# kinds: toml_project_version | json_version | yaml_version
+[version_source]
+path = "pyproject.toml"
+kind = "toml_project_version"
+
+
+[[surfaces]]
+id = "pypi"
+status = "planned"
+# NOT pyproject.toml. Nearly every Python project has one without publishing
+# anything, so it signals that the project exists, not that it publishes. A
+# project with a pyproject and nothing on PyPI would be asked for publishing
+# rules it will never need. The trigger is the thing that does the
+# publishing.
+#
+# A manual `twine upload` leaves no file to trigger on. If you publish that
+# way, set status = "live" by hand -- a trigger cannot detect a decision
+# nobody wrote down.
+trigger = ".github/workflows/release.yml"
+why = "a Python distribution on PyPI, published by a release workflow"
+# When this goes live, the useful requirement is that the README exists,
+# because PyPI renders it as the project description:
+#   [[surfaces.requires]]
+#   kind = "file_exists"
+#   path = "README.md"
+
+
+[[surfaces]]
+id = "mcp-registry"
+status = "planned"
+trigger = "server.json"
+why = """
+an MCP server in the official registry. The registry matches a `mcp-name:` \
+token in the package README against the name in server.json to confirm the \
+publisher; a release whose README lacks it is rejected. It does NOT check \
+that the declared version matches the package."""
+# When this goes live:
+#   [[surfaces.requires]]
+#   kind = "json_version_matches_source"
+#   path = "server.json"
+#   field = "version"
+#   [[surfaces.requires]]
+#   kind = "json_version_matches_source"
+#   path = "server.json"
+#   field = "packages[].version"
+#   [[surfaces.requires]]
+#   kind = "file_contains_json_field"
+#   path = "README.md"
+#   from = "server.json"
+#   field = "name"
+#   template = "mcp-name: {}"
+
+
+[[surfaces]]
+id = "citation"
+status = "planned"
+trigger = "CITATION.cff"
+why = """
+what a reader copies into a bibliography. It carries its own version and \
+drifts silently; found three releases stale on this gate's first run in \
+another repository."""
+# When this goes live:
+#   [[surfaces.requires]]
+#   kind = "yaml_version_matches_source"
+#   path = "CITATION.cff"
+#   field = "version"
+
+
+[[surfaces]]
+id = "npm"
+status = "planned"
+trigger = "package.json"
+why = "a Node package on npm"
+
+
+[[surfaces]]
+id = "docker"
+status = "planned"
+trigger = "Dockerfile"
+why = "a published image, whose tag must agree with the release version"
+
+
+[[surfaces]]
+id = "github-action"
+status = "planned"
+trigger = "action.yml"
+why = "a published action, whose declared version must match the tag"

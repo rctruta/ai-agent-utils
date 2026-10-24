@@ -1,0 +1,70 @@
+name: CI
+
+# The job name below becomes the status-check CONTEXT that branch protection
+# requires. Renaming the job silently stops the required check from arriving,
+# which blocks every merge while looking like CI is simply slow. The name and
+# the protection rule are one decision; set_branch_protection.sh reads this
+# file so they cannot drift apart.
+
+on:
+  # Manual trigger first, so a check can be proven green BEFORE protection
+  # requires it. A repository commonly fails its first
+  # CI run; requiring the context blind would have locked both.
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # diff coverage needs the base branch
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          [ -f requirements.txt ] && pip install -r requirements.txt || true
+          pip install pytest pytest-cov diff-cover
+          # Declared in .pre-commit-config.yaml, and the hook refuses to pass
+          # without it, so it is a real dependency rather than a convenience.
+          pip install pre-commit
+
+      - name: Run the declared checks
+        run: |
+          if [ -f .pre-commit-config.yaml ]; then
+            pre-commit run --all-files
+          fi
+
+      - name: Run the test suite
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          # Collected from the repository ROOT, never a directory list.
+          # A pre-push hook that ran one directory announced "full test
+          # suite" while covering 51 of 52 tests; the 52nd had never run.
+          # Enumerating paths is how a gate's scope falls behind the code.
+          #
+          # CI is also the only place the suite runs from a CLEAN checkout,
+          # which is what surfaces a test depending on data that is not in
+          # the repository.
+          pytest -q --no-header --cov=. --cov-report=xml
+
+      - name: Diff coverage
+        if: github.event_name == 'pull_request'
+        run: |
+          # Not total coverage -- the fraction of lines CHANGED by this pull
+          # request that the tests actually executed. Total coverage says
+          # nothing about whether the new code is covered; this does, and it
+          # is the number that makes an untested change visible.
+          #
+          # Reported, not enforced, until a repository has chosen a floor.
+          # A threshold nobody agreed to is the gate everyone learns to skip.
+          diff-cover coverage.xml --compare-branch=origin/main || true

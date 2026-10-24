@@ -1,0 +1,51 @@
+# Single source of truth for load-bearing claims in this project.
+#
+# Nothing goes into an outward-facing document - README, site, paper, resume,
+# application - unless it is registered here with a source that can be checked.
+#
+# status: verified   - checked against a source, with the check recorded below
+#         reported   - human testimony; true, but no external artifact
+#         unverified - NOT for outward-facing use
+#
+#   python3 .gates/verify.py           check registered facts against sources
+#   python3 .gates/scan.py             find banned claims + unregistered numbers
+#
+# check types: grep (default) | dircount | shell | url_contains
+#
+# --- EXAMPLES (uncomment and edit; delete what you don't use) ---------------
+#
+# facts:
+#   - id: throughput_10m
+#     claim: "13.2x"
+#     context: "engine A vs engine B at 10M rows"
+#     status: verified
+#     source: docs/results.md
+#     grep: "13.2"
+#
+#   - id: upstream_issues
+#     claim: "#369, #370"
+#     context: "defects reported upstream, authored by us"
+#     status: verified
+#     source: "gh search issues --repo owner/repo --author me --json number"
+#     check: shell
+#     expect: "369"
+#
+#   - id: headcount
+#     claim: "1,400+"
+#     context: "a fact only a human can attest to"
+#     status: reported
+
+facts: []
+
+# Claims that were fabricated once. These BLOCK a commit.
+# Add a pattern the moment a wrong number is found in the wild:
+#   - pattern: "416"
+#     reason: "Fabricated run count. Real figure: 110+."
+banned: []
+
+# Lines that legitimately MENTION a banned pattern in order to warn about it
+# (retraction notes, crib sheets). Keeps the gate honest without muting it:
+#   - file: NOTES.md
+#     contains: "filed by other"
+#     reason: "Explicitly records that these are not ours."
+allow: []
