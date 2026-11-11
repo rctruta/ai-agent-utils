@@ -84,6 +84,38 @@ rm -rf "$FAKEBIN"
 echo "5d) GATES.md agrees with templates/gates/ (version + every script)"
 python3 "$(dirname "$0")/check_registry.py" --check
 
+echo "5e) a seeded Python project passes its own CI jobs from a fresh clone"
+# The workflow text itself is executed, so the check cannot drift from what CI
+# runs. A fresh clone is the condition CI has: no hooks path, no virtualenv.
+job_script() {
+  awk -v job="  $1:" '
+    /^  [a-z_-]+:/ { in_job = ($0 ~ "^" job) ; in_run = 0 }
+    in_job && /- run: \|/ { in_run = 1; next }
+    in_job && in_run { sub(/^          /, ""); print }
+  ' "$ROOT/py/.github/workflows/ci.yml"
+}
+git clone -q "$ROOT/py" "$ROOT/pyclone"
+for job in test gates; do
+  job_script "$job" > "$ROOT/$job.sh"
+  [ -s "$ROOT/$job.sh" ] || { echo "  FAIL: no run block found for job '$job'" >&2; exit 1; }
+  (cd "$ROOT/pyclone" && sh -e "$ROOT/$job.sh" >"$ROOT/$job.log" 2>&1) || {
+    echo "  FAIL: seeded CI job '$job' fails on a fresh clone" >&2
+    tail -15 "$ROOT/$job.log" >&2; exit 1; }
+done
+
+echo "5f) invoked through a symlink, the gates are still found"
+ln -s "$SCRIPT" "$ROOT/init-link"
+printf 'N\nN\nN\n' | bash "$ROOT/init-link" vialink "$ROOT" >/dev/null 2>&1
+[ -f "$ROOT/vialink/.gates/VERSION" ]
+
+echo "5g) gates wanted but templates missing: refused before anything is created"
+mkdir "$ROOT/bare"
+cp "$SCRIPT" "$ROOT/bare/init-agent-project.sh"
+if printf 'N\nN\nN\n' | bash "$ROOT/bare/init-agent-project.sh" orphan "$ROOT" >/dev/null 2>&1; then
+  echo "  FAIL: seeded a project without the gates it was asked for" >&2; exit 1
+fi
+[ ! -e "$ROOT/orphan" ]
+
 echo "6) hooks are wired (core.hooksPath) and first commit exists"
 [ "$(git -C "$ROOT/plain" config core.hooksPath)" = ".githooks" ]
 git -C "$ROOT/plain" rev-parse HEAD >/dev/null

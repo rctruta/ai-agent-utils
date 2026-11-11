@@ -35,7 +35,25 @@ set -- $ARGS
 
 PROJECT_NAME=$1
 ROOT_DIR=${2:-$HOME/Projects}
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolved through symlinks: a link to this script on PATH lives in a
+# directory that holds no templates.
+SELF="$0"
+while [ -L "$SELF" ]; do
+  LINK="$(readlink "$SELF")"
+  case "$LINK" in
+    /*) SELF="$LINK" ;;
+    *)  SELF="$(dirname "$SELF")/$LINK" ;;
+  esac
+done
+SCRIPT_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+
+# A project asked for with gates and created without them looks protected and
+# is not, so this is refused before anything is created.
+if [ "$WANT_GATES" = "1" ] && [ ! -d "$SCRIPT_DIR/templates/gates" ]; then
+  echo "Error: $SCRIPT_DIR/templates/gates not found; the gates cannot be installed." >&2
+  echo "  Run this script from its repository, or pass --no-gates." >&2
+  exit 1
+fi
 
 # 1. Ensure Root Directory Exists
 if [ ! -d "$ROOT_DIR" ]; then
@@ -297,13 +315,16 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
+# A gate that reads a named file instead of the git index is given one.
+FILE_ARGS = {"check_outbound.py": ["--no-private", "README.md"]}
+
 
 def test_gates_are_installed_and_runnable():
     """Every gate exists and runs. Exit 1 is a finding; a crash is a defect."""
     gates = sorted((ROOT / ".gates").glob("check_*.py"))
     assert gates, "no gates in .gates/ -- this workspace is not protected"
     for g in gates:
-        r = subprocess.run([sys.executable, str(g)], cwd=ROOT,
+        r = subprocess.run([sys.executable, str(g), *FILE_ARGS.get(g.name, [])], cwd=ROOT,
                            capture_output=True, text=True, timeout=60)
         assert r.returncode in (0, 1), (
             f"{g.name} crashed with exit {r.returncode}: {r.stderr[-200:]}")
@@ -342,6 +363,7 @@ jobs:
       - run: |
           uv venv
           uv pip install -r requirements.txt
+          git config core.hooksPath .githooks   # hooks do not clone
           .venv/bin/pytest
 
   gates:  # the hooks are local policy and bypassable; this copy is not
@@ -351,7 +373,10 @@ jobs:
       - run: |
           [ -d .gates ] || { echo "no .gates in this repository"; exit 0; }
           for g in .gates/*.py; do
-            case "$(basename "$g")" in _*) continue;; esac
+            # check_outbound and check_wheel read a named file, not the
+            # tree, so there is nothing here to hand them; prove_gates.sh
+            # below shows both still fire.
+            case "$(basename "$g")" in _*|check_outbound.py|check_wheel.py) continue;; esac
             echo "--- $(basename "$g")"
             python3 "$g" --check
           done
@@ -462,7 +487,7 @@ fi
 # --- GATES INSTALL ---------------------------------------------------------
 # Claim integrity + change safety. Agent-agnostic: plain scripts run by git
 # hooks, so they bind whoever is driving. Agent-specific files only DESCRIBE.
-if [ "$WANT_GATES" = "1" ] && [ -d "$SCRIPT_DIR/templates/gates" ]; then
+if [ "$WANT_GATES" = "1" ]; then
   mkdir -p .gates
   cp -R "$SCRIPT_DIR/templates/gates/." .gates/
   # Everything executable, found rather than listed. A hardcoded list is a
@@ -472,12 +497,18 @@ if [ "$WANT_GATES" = "1" ] && [ -d "$SCRIPT_DIR/templates/gates" ]; then
   sh "$SCRIPT_DIR/templates/install_gates.sh"
   chmod +x .githooks/pre-commit .githooks/pre-push
   echo "=> Gates installed: .gates/ + pre-commit framework + agent adapters"
-elif [ "$WANT_GATES" = "1" ]; then
-  echo "=> WARNING: templates/gates not found; gates skipped." >&2
 fi
 
 git config core.hooksPath .githooks
 git add .
+# The gate scripts carry literals of their own, and check_script_standards
+# does not exempt .gates/. Those findings are accepted here, in a baseline
+# that is committed and visible in a diff, so the gate starts clean and
+# reports only what the project adds.
+if [ -f .gates/check_script_standards.py ]; then
+  python3 .gates/check_script_standards.py --baseline >/dev/null
+  git add .
+fi
 # Normalize before the first commit, the way any repository adopting
 # pre-commit does it: the whitespace hooks rewrite files rather than only
 # reporting, so running them once up front means the first commit is already
