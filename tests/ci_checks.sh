@@ -58,8 +58,11 @@ echo "5b) gates: installed by default, provable, and skippable"
 [ -f "$ROOT/plain/.claude/skills/gates/SKILL.md" ]
 [ -f "$ROOT/plain/.cursor/rules/gates.mdc" ]
 grep -q 'Claim integrity (enforced)' "$ROOT/plain/AGENTS.md"
-# every gate must actually fire
-(cd "$ROOT/plain" && ./.gates/tests/prove_gates.sh >/dev/null)
+# every gate must actually fire, and the hook must be proven through git:
+# a proof that was skipped prints nothing, so its line is required here
+(cd "$ROOT/plain" && ./.gates/tests/prove_gates.sh >"$ROOT/prove.log")
+grep -q 'PASS  the pre-commit hook accepts a clean staged file end to end' "$ROOT/prove.log"
+grep -q 'PASS  the pre-commit hook refuses a violating staged file end to end' "$ROOT/prove.log"
 # --no-gates restores the minimal path
 run 'N\nN\nN\n' nogates --no-gates
 [ ! -e "$ROOT/nogates/.gates" ]
