@@ -86,7 +86,8 @@ python3 "$(dirname "$0")/check_registry.py" --check
 
 echo "5e) a seeded Python project passes its own CI jobs from a fresh clone"
 # The workflow text itself is executed, so the check cannot drift from what CI
-# runs. A fresh clone is the condition CI has: no hooks path, no virtualenv.
+# runs. Each job gets its own fresh clone, the condition CI has: no hooks
+# path, no virtualenv, and nothing left behind by another job.
 job_script() {
   awk -v job="  $1:" '
     /^  [a-z_-]+:/ { in_job = ($0 ~ "^" job) ; in_run = 0 }
@@ -94,11 +95,14 @@ job_script() {
     in_job && in_run { sub(/^          /, ""); print }
   ' "$ROOT/py/.github/workflows/ci.yml"
 }
-git clone -q "$ROOT/py" "$ROOT/pyclone"
+# A runner has no git identity either, and git must not guess one here.
+printf '[user]\n\tuseConfigOnly = true\n' > "$ROOT/no-identity.gitconfig"
 for job in test gates; do
   job_script "$job" > "$ROOT/$job.sh"
   [ -s "$ROOT/$job.sh" ] || { echo "  FAIL: no run block found for job '$job'" >&2; exit 1; }
-  (cd "$ROOT/pyclone" && sh -e "$ROOT/$job.sh" >"$ROOT/$job.log" 2>&1) || {
+  git clone -q "$ROOT/py" "$ROOT/clone-$job"
+  (cd "$ROOT/clone-$job" && GIT_CONFIG_GLOBAL="$ROOT/no-identity.gitconfig" \
+     GIT_CONFIG_SYSTEM=/dev/null sh -e "$ROOT/$job.sh" >"$ROOT/$job.log" 2>&1) || {
     echo "  FAIL: seeded CI job '$job' fails on a fresh clone" >&2
     tail -15 "$ROOT/$job.log" >&2; exit 1; }
 done

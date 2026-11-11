@@ -370,8 +370,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
       - run: |
           [ -d .gates ] || { echo "no .gates in this repository"; exit 0; }
+          # The pre-commit hook refuses to pass without its runner.
+          uv tool install pre-commit
+          git config core.hooksPath .githooks   # hooks do not clone
           for g in .gates/*.py; do
             # check_outbound and check_wheel read a named file, not the
             # tree, so there is nothing here to hand them; prove_gates.sh
@@ -380,6 +384,10 @@ jobs:
             echo "--- $(basename "$g")"
             python3 "$g" --check
           done
+          # The proofs commit in throwaway repositories, and a runner has
+          # no git identity of its own.
+          export GIT_AUTHOR_NAME=ci GIT_AUTHOR_EMAIL=ci@example.invalid
+          export GIT_COMMITTER_NAME=ci GIT_COMMITTER_EMAIL=ci@example.invalid
           sh .gates/tests/prove_gates.sh
 EOF
 
