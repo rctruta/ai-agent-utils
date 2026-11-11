@@ -6,10 +6,13 @@ on:
 
 jobs:
   test:   # this job name is the required status-check context
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          # Nothing here for a cache key to follow: no lockfile, no requirements.
+          enable-cache: false
       # A seeded project declares pre-commit and its hook refuses to pass
       # without it, so the runner is a real dependency of the seed and
       # therefore of this job.

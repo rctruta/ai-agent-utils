@@ -356,10 +356,10 @@ on:
 
 jobs:
   test:   # this job name is the required status-check context
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
       - run: |
           uv venv
           uv pip install -r requirements.txt
@@ -367,10 +367,10 @@ jobs:
           .venv/bin/pytest
 
   gates:  # the hooks are local policy and bypassable; this copy is not
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
       - run: |
           [ -d .gates ] || { echo "no .gates in this repository"; exit 0; }
           # The pre-commit hook refuses to pass without its runner.
