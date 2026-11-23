@@ -1,0 +1,212 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-labelledby="title desc">
+  <title id="title">ai-agent-utils — Gates, Not Words</title>
+  <desc id="desc">Two-layer enforcement architecture: Workspace with external scratch symlink flows through Layer 1 Local Git Hooks (pre-commit and pre-push) and Layer 2 Remote CI and Branch Protection to the protected main branch.</desc>
+
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090e1a"/>
+      <stop offset="55%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#0b1322"/>
+    </linearGradient>
+
+    <!-- Subtle dot grid -->
+    <pattern id="dots" x="0" y="0" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="#334155" opacity="0.35"/>
+    </pattern>
+
+    <!-- Ambient glows -->
+    <radialGradient id="glow-cyan" cx="15%" cy="42%" r="32%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow-amber" cx="44%" cy="45%" r="28%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow-emerald" cx="88%" cy="46%" r="30%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Arrowheads -->
+    <marker id="arrow-cyan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#f59e0b"/>
+    </marker>
+    <marker id="arrow-emerald" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#10b981"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#f43f5e"/>
+    </marker>
+  </defs>
+
+  <style>
+    .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+  </style>
+
+  <!-- Canvas -->
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#dots)"/>
+  <rect width="1280" height="640" fill="url(#glow-cyan)"/>
+  <rect width="1280" height="640" fill="url(#glow-amber)"/>
+  <rect width="1280" height="640" fill="url(#glow-emerald)"/>
+
+  <!-- Header -->
+  <g transform="translate(52, 42)">
+    <text x="0" y="34" class="sans" font-size="36" font-weight="800" fill="#f8fafc" letter-spacing="-0.8">ai-agent-utils</text>
+    <rect x="252" y="8" width="176" height="30" rx="15" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.65" stroke-width="1.2"/>
+    <text x="340" y="28" text-anchor="middle" class="mono" font-size="13" font-weight="700" fill="#34d399" letter-spacing="1.2">GATES, NOT WORDS</text>
+    <text x="0" y="64" class="sans" font-size="16" fill="#94a3b8">Two-layer git-hook and CI guardrails for repositories shared by humans and coding agents</text>
+  </g>
+
+  <!-- ========================================================= -->
+  <!-- NODE 1: WORKSPACE                                         -->
+  <!-- ========================================================= -->
+  <g transform="translate(52, 152)">
+    <rect width="232" height="226" rx="14" fill="#111c32" stroke="#38bdf8" stroke-opacity="0.55" stroke-width="1.6"/>
+    <!-- Top accent bar -->
+    <rect x="0" y="0" width="232" height="5" rx="2.5" fill="#38bdf8"/>
+
+    <!-- Icon + Header -->
+    <rect x="18" y="22" width="32" height="32" rx="8" fill="#38bdf8" fill-opacity="0.14"/>
+    <path d="M 27 33 L 33 38 L 27 43 M 35 43 L 42 43" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="60" y="37" class="sans" font-size="18" font-weight="700" fill="#f8fafc">Workspace</text>
+    <text x="60" y="54" class="sans" font-size="12.5" fill="#7dd3fc">Human + AI Agent</text>
+
+    <!-- Inside items -->
+    <rect x="18" y="76" width="196" height="42" rx="8" fill="#0b1324" stroke="#1e293b" stroke-width="1"/>
+    <text x="30" y="95" class="mono" font-size="12.5" font-weight="700" fill="#e2e8f0">feat/* branch</text>
+    <text x="30" y="110" class="sans" font-size="11.5" fill="#94a3b8">One-use branch · stage by name</text>
+
+    <rect x="18" y="128" width="196" height="42" rx="8" fill="#0b1324" stroke="#1e293b" stroke-width="1"/>
+    <text x="30" y="147" class="mono" font-size="12.5" font-weight="700" fill="#e2e8f0">AGENTS.md</text>
+    <text x="30" y="162" class="sans" font-size="11.5" fill="#94a3b8">Documents rules · hooks enforce</text>
+
+    <text x="116" y="204" text-anchor="middle" class="mono" font-size="11.5" fill="#64748b">git commit / git push</text>
+  </g>
+
+  <!-- External scratch boundary -->
+  <g transform="translate(52, 412)">
+    <line x1="0" y1="0" x2="232" y2="0" stroke="#64748b" stroke-width="1.2" stroke-dasharray="5 5"/>
+
+    <!-- Symlink connector -->
+    <line x1="56" y1="-34" x2="56" y2="22" stroke="#a78bfa" stroke-width="1.6" stroke-dasharray="4 3"/>
+    <circle cx="56" cy="0" r="9" fill="#0f172a" stroke="#f43f5e" stroke-width="1.6"/>
+    <path d="M 52.5 -3.5 L 59.5 3.5 M 59.5 -3.5 L 52.5 3.5" stroke="#f43f5e" stroke-width="1.6" stroke-linecap="round"/>
+
+    <rect x="112" y="-10" width="102" height="20" rx="4" fill="#0f172a"/>
+    <text x="163" y="4" text-anchor="middle" class="mono" font-size="10.5" font-weight="700" fill="#94a3b8" letter-spacing="0.8">OUTSIDE GIT</text>
+
+    <rect x="0" y="24" width="232" height="106" rx="12" fill="#13162b" stroke="#a78bfa" stroke-opacity="0.55" stroke-width="1.4" stroke-dasharray="6 4"/>
+    <text x="18" y="52" class="mono" font-size="14" font-weight="700" fill="#c4b5fd">scratch/ → ~/scratch</text>
+    <text x="18" y="75" class="sans" font-size="12.5" fill="#cbd5e1">Local notes &amp; drafts symlink</text>
+    <text x="18" y="96" class="sans" font-size="12" fill="#94a3b8">git refuses to stage beyond</text>
+    <text x="18" y="113" class="sans" font-size="12" fill="#94a3b8">a symbolic link — zero leaks</text>
+  </g>
+
+  <!-- Arrow 1: Workspace -> Layer 1 -->
+  <line x1="284" y1="265" x2="338" y2="265" stroke="#38bdf8" stroke-width="2.4" marker-end="url(#arrow-cyan)"/>
+
+  <!-- ========================================================= -->
+  <!-- NODE 2: LAYER 1 — LOCAL GIT HOOKS                         -->
+  <!-- ========================================================= -->
+  <g transform="translate(348, 134)">
+    <rect width="276" height="284" rx="14" fill="#141a2b" stroke="#f59e0b" stroke-opacity="0.65" stroke-width="1.8"/>
+    <!-- Left vertical gate bars -->
+    <rect x="0" y="0" width="6" height="284" rx="3" fill="#f59e0b"/>
+
+    <!-- Layer pill -->
+    <rect x="20" y="18" width="166" height="24" rx="12" fill="#f59e0b" fill-opacity="0.16"/>
+    <text x="103" y="34" text-anchor="middle" class="mono" font-size="11.5" font-weight="700" fill="#fbbf24" letter-spacing="0.8">LAYER 1 · LOCAL HOOKS</text>
+
+    <!-- Sub-card A: pre-commit -->
+    <rect x="20" y="56" width="236" height="122" rx="10" fill="#0b1324" stroke="#334155" stroke-width="1.1"/>
+    <text x="34" y="80" class="mono" font-size="14" font-weight="700" fill="#fde68a">.githooks/pre-commit</text>
+    <text x="34" y="102" class="mono" font-size="11.5" fill="#cbd5e1">• ruff · gitleaks · check-ast</text>
+    <text x="34" y="122" class="mono" font-size="11.5" fill="#cbd5e1">• .gates/verify &amp; scan</text>
+    <text x="34" y="142" class="mono" font-size="11.5" fill="#cbd5e1">• no_hardcoding · no_orphans</text>
+    <text x="34" y="162" class="mono" font-size="11.5" fill="#cbd5e1">• publish_contract · standards</text>
+
+    <!-- Sub-card B: pre-push -->
+    <rect x="20" y="190" width="236" height="76" rx="10" fill="#0b1324" stroke="#334155" stroke-width="1.1"/>
+    <text x="34" y="214" class="mono" font-size="14" font-weight="700" fill="#fde68a">.githooks/pre-push</text>
+    <text x="34" y="236" class="sans" font-size="12.5" fill="#cbd5e1">• Refuses dirty or untracked tree</text>
+    <text x="34" y="254" class="sans" font-size="12.5" fill="#cbd5e1">• Runs pytest / npm test suite</text>
+  </g>
+
+  <!-- Deflected rejection path from Layer 1 -->
+  <path d="M 486 418 L 486 462 Q 486 484 508 484 L 542 484" fill="none" stroke="#f43f5e" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrow-red)"/>
+  <g transform="translate(552, 452)">
+    <rect width="386" height="64" rx="12" fill="#23121d" stroke="#f43f5e" stroke-opacity="0.65" stroke-width="1.4"/>
+    <text x="20" y="27" class="mono" font-size="12.5" font-weight="700" fill="#fb7185">✕ COMMIT / PUSH REFUSED</text>
+    <text x="20" y="48" class="sans" font-size="12.5" fill="#fda4af">Secrets · home paths · hardcoded duplicates · claim drift</text>
+  </g>
+
+  <!-- Arrow 2: Layer 1 -> Layer 2 -->
+  <line x1="624" y1="265" x2="678" y2="265" stroke="#f59e0b" stroke-width="2.4" marker-end="url(#arrow-amber)"/>
+
+  <!-- ========================================================= -->
+  <!-- NODE 3: LAYER 2 — REMOTE CI & BRANCH PROTECTION           -->
+  <!-- ========================================================= -->
+  <g transform="translate(688, 134)">
+    <rect width="276" height="284" rx="14" fill="#101f2c" stroke="#14b8a6" stroke-opacity="0.70" stroke-width="1.8"/>
+    <!-- Left vertical gate bar -->
+    <rect x="0" y="0" width="6" height="284" rx="3" fill="#14b8a6"/>
+
+    <!-- Layer pill -->
+    <rect x="20" y="18" width="184" height="24" rx="12" fill="#14b8a6" fill-opacity="0.16"/>
+    <text x="112" y="34" text-anchor="middle" class="mono" font-size="11.5" font-weight="700" fill="#2dd4bf" letter-spacing="0.8">LAYER 2 · REMOTE CI</text>
+
+    <!-- Sub-card A: GitHub Actions -->
+    <rect x="20" y="56" width="236" height="104" rx="10" fill="#0b1324" stroke="#1e3a4c" stroke-width="1.1"/>
+    <text x="34" y="80" class="mono" font-size="14" font-weight="700" fill="#99f6e4">GitHub Actions</text>
+    <text x="34" y="102" class="sans" font-size="12.5" fill="#cbd5e1">• Clean-clone test &amp; gates jobs</text>
+    <text x="34" y="122" class="mono" font-size="12" fill="#cbd5e1">• prove_gates.sh self-tests</text>
+    <text x="34" y="142" class="sans" font-size="12.5" fill="#cbd5e1">• 40-char SHA-pinned + cached</text>
+
+    <!-- Sub-card B: Branch Protection -->
+    <rect x="20" y="172" width="236" height="94" rx="10" fill="#0b1324" stroke="#1e3a4c" stroke-width="1.1"/>
+    <text x="34" y="196" class="mono" font-size="14" font-weight="700" fill="#99f6e4">Branch Protection</text>
+    <text x="34" y="218" class="sans" font-size="12.5" fill="#cbd5e1">• Pull Request required</text>
+    <text x="34" y="236" class="sans" font-size="12.5" fill="#cbd5e1">• Admins included</text>
+    <text x="34" y="254" class="sans" font-size="12.5" fill="#5eead4">• Unbypassable backstop</text>
+  </g>
+
+  <!-- Arrow 3: Layer 2 -> main -->
+  <line x1="964" y1="265" x2="1014" y2="265" stroke="#10b981" stroke-width="2.4" marker-end="url(#arrow-emerald)"/>
+
+  <!-- ========================================================= -->
+  <!-- NODE 4: MAIN (PROTECTED SOURCE OF TRUTH)                  -->
+  <!-- ========================================================= -->
+  <g transform="translate(1024, 166)">
+    <rect width="206" height="210" rx="16" fill="#0c2220" stroke="#10b981" stroke-width="2.2"/>
+
+    <!-- Shield icon -->
+    <g transform="translate(83, 28)">
+      <path d="M 20 0 L 38 7 V 21 C 38 33 30 42 20 46 C 10 42 2 33 2 21 V 7 Z" fill="#10b981" fill-opacity="0.18" stroke="#10b981" stroke-width="2.2"/>
+      <path d="M 12 22 L 18 28 L 29 16" fill="none" stroke="#34d399" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <text x="103" y="112" text-anchor="middle" class="mono" font-size="30" font-weight="800" fill="#ecfdf5">main</text>
+    <text x="103" y="138" text-anchor="middle" class="sans" font-size="13" font-weight="600" fill="#6ee7b7">Protected Source of Truth</text>
+
+    <rect x="20" y="158" width="166" height="30" rx="15" fill="#10b981" fill-opacity="0.2" stroke="#10b981" stroke-opacity="0.5"/>
+    <text x="103" y="178" text-anchor="middle" class="mono" font-size="11.5" font-weight="700" fill="#a7f3d0">✓ Verified &amp; Merged</text>
+  </g>
+
+  <!-- Footer bar -->
+  <line x1="52" y1="576" x2="1228" y2="576" stroke="#1e293b" stroke-width="1"/>
+  <text x="52" y="608" class="mono" font-size="13" fill="#64748b">init-agent-project</text>
+  <text x="210" y="608" class="mono" font-size="13" fill="#475569">|</text>
+  <text x="230" y="608" class="mono" font-size="13" fill="#94a3b8">--gates (full)</text>
+  <text x="358" y="608" class="mono" font-size="13" fill="#475569">·</text>
+  <text x="378" y="608" class="mono" font-size="13" fill="#94a3b8">--no-gates</text>
+  <text x="474" y="608" class="mono" font-size="13" fill="#475569">·</text>
+  <text x="494" y="608" class="mono" font-size="13" fill="#94a3b8">--lite (prototype / repro)</text>
+  <text x="1228" y="608" text-anchor="end" class="mono" font-size="12.5" fill="#475569">Apache 2.0 · CC BY 4.0</text>
+</svg>
