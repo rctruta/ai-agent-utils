@@ -8,6 +8,8 @@ Workspace initializer and git-hook gates for repositories shared by humans and c
 
 Rules written in prose do not hold under long sessions or context compaction. Every boundary this repository ships is enforced by a git hook, a standard linter/scanner, or CI; `AGENTS.md` only documents what those gates refuse.
 
+![ai-agent-utils architecture: Workspace with external scratch symlink flowing through Layer 1 Local Git Hooks and Layer 2 Remote CI & Branch Protection to main](assets/gates-architecture.svg)
+
 ## Install
 
 Symlink the script onto `PATH` (do not copy it — the initializer resolves `templates/gates/` relative to its own repository):
