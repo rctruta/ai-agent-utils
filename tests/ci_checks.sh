@@ -27,10 +27,14 @@ run() { printf "$1" | bash "$SCRIPT" "$2" "$ROOT" "${@:3}" >/dev/null 2>&1; }
 echo "3) default path: pre-push + claim gate — no lock, no CI workflow"
 run 'N\nN\nN\n' plain
 [ -f "$ROOT/plain/.githooks/pre-push" ]
+grep -q 'package.json' "$ROOT/plain/.githooks/pre-push"
+grep -q 'badge.svg' "$ROOT/plain/README.md"
+grep -q 'img.shields.io/badge/License' "$ROOT/plain/README.md"
 # pre-commit now exists because the claim gate lives there. It must contain the
 # gate and must NOT contain the optional same-tree lock.
 [ -f "$ROOT/plain/.githooks/pre-commit" ]
 grep -q 'claim integrity gate' "$ROOT/plain/.githooks/pre-commit"
+grep -q 'check_script_standards.py' "$ROOT/plain/.githooks/pre-commit"
 ! grep -q 'agent-lock' "$ROOT/plain/.githooks/pre-commit"
 [ ! -e "$ROOT/plain/agent-lock" ]
 [ ! -e "$ROOT/plain/.github/workflows/ci.yml" ]
@@ -132,7 +136,33 @@ echo "6) hooks are wired (core.hooksPath) and first commit exists"
 [ "$(git -C "$ROOT/plain" config core.hooksPath)" = ".githooks" ]
 git -C "$ROOT/plain" rev-parse HEAD >/dev/null
 
-echo "7) the protection-call checker itself refuses and spares the right lines"
+echo "7) --help / -h prints usage without creating a directory"
+HELP_OUT="$(bash "$SCRIPT" --help)"
+echo "$HELP_OUT" | grep -q -- '--lite'
+echo "$HELP_OUT" | grep -q -- '--python'
+[ ! -e "$ROOT/--help" ]
+bash "$SCRIPT" -h >/dev/null
+
+echo "8) --lite mode: minimal workspace with pre-push guard, no gates/AGENTS/scratch/CI"
+run 'N\n' liteproj --lite
+[ -d "$ROOT/liteproj/.git" ]
+[ -f "$ROOT/liteproj/.gitignore" ]
+[ -f "$ROOT/liteproj/README.md" ]
+[ -x "$ROOT/liteproj/.githooks/pre-push" ]
+grep -q 'ls-files --error-unmatch .env' "$ROOT/liteproj/.githooks/pre-push"
+[ "$(git -C "$ROOT/liteproj" config core.hooksPath)" = ".githooks" ]
+[ ! -e "$ROOT/liteproj/.gates" ]
+[ ! -e "$ROOT/liteproj/AGENTS.md" ]
+[ ! -e "$ROOT/liteproj/scratch" ]
+[ ! -e "$ROOT/liteproj/.github" ]
+git -C "$ROOT/liteproj" rev-parse HEAD >/dev/null
+
+echo "8b) --lite --python: non-interactive Python venv"
+bash "$SCRIPT" --lite --python litepy "$ROOT" >/dev/null 2>&1
+[ -f "$ROOT/litepy/requirements.txt" ]
+[ -x "$ROOT/litepy/.venv/bin/python" ]
+
+echo "9) the protection-call checker itself refuses and spares the right lines"
 # A checker is only trustworthy once it has been seen to do both. The dotted
 # path is an error in a field that BUILDS the request and correct in a --jq
 # expression that READS the response, so the narrow rule is the whole point.

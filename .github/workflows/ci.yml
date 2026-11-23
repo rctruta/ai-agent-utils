@@ -8,11 +8,16 @@ jobs:
   test:   # this job name is the required status-check context
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           # Nothing here for a cache key to follow: no lockfile, no requirements.
           enable-cache: false
+      - name: Cache pre-commit environments
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-py3.12-${{ hashFiles('.pre-commit-config.yaml', 'templates/pre-commit-config.yaml') }}
       # A seeded project declares pre-commit and its hook refuses to pass
       # without it, so the runner is a real dependency of the seed and
       # therefore of this job.

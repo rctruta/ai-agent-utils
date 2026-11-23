@@ -21,6 +21,7 @@
 - **Remote Gate (GitHub Branch Protection):**
   - `main` is the source of truth; do not commit directly to `main`.
   - Feature work must happen on topic branches (`feat/...` or `fix/...`) via Pull Requests.
+  - **One-use branches (Squash-and-Merge):** Treat branches as one-use — after a PR merges, always start the next change with `git fetch origin && git checkout -b <new-branch> origin/main`.
 
 ---
 
