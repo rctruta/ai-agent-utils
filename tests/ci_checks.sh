@@ -113,7 +113,7 @@ for job in test gates; do
   job_script "$job" > "$ROOT/$job.sh"
   [ -s "$ROOT/$job.sh" ] || { echo "  FAIL: no run block found for job '$job'" >&2; exit 1; }
   git clone -q "$ROOT/py" "$ROOT/clone-$job"
-  (cd "$ROOT/clone-$job" && GIT_CONFIG_GLOBAL="$ROOT/no-identity.gitconfig" \
+  (cd "$ROOT/clone-$job" && unset VIRTUAL_ENV && GIT_CONFIG_GLOBAL="$ROOT/no-identity.gitconfig" \
      GIT_CONFIG_SYSTEM=/dev/null sh -e "$ROOT/$job.sh" >"$ROOT/$job.log" 2>&1) || {
     echo "  FAIL: seeded CI job '$job' fails on a fresh clone" >&2
     tail -15 "$ROOT/$job.log" >&2; exit 1; }

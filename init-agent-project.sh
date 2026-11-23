@@ -487,7 +487,7 @@ jobs:
             uv sync
           else
             uv venv
-            uv pip install -r requirements.txt
+            uv pip install --python .venv/bin/python -r requirements.txt
           fi
           git config core.hooksPath .githooks   # hooks do not clone
           .venv/bin/pytest
