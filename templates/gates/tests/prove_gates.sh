@@ -656,7 +656,19 @@ fi
 # Both directions, because one proves nothing: a hook that refuses everything
 # passes a refusal-only probe. Nothing is committed; a file is staged, the
 # hook is run as git runs it, and the file is removed either way.
-if [ -f "$ROOT/.githooks/pre-commit" ] && git -C "$ROOT" hook run --help >/dev/null 2>&1; then
+#
+# Whether this git has `git hook` is read from its own list of built-in
+# commands, which runs nothing and depends on no hook name. `git hook run
+# --help` is not that question -- some builds answer it with a usage error
+# although the command works. A git that cannot run the probe is reported as
+# a skip, never passed over in silence.
+can_hook_run() {
+  git --list-cmds=builtins 2>/dev/null | grep -qx hook
+}
+if [ -f "$ROOT/.githooks/pre-commit" ] && ! can_hook_run; then
+  echo "  SKIP  this git has no 'git hook run'; the hook is not proven end to end"
+  SKIP=$((SKIP+1))
+elif [ -f "$ROOT/.githooks/pre-commit" ]; then
   HP="$ROOT/.gates/.hprobe.py"
   hook_run() { git -C "$ROOT" hook run pre-commit >/dev/null 2>&1; }
   cleanup_hp() {

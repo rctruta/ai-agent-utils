@@ -6,7 +6,7 @@ so it binds whoever is driving — a person, Claude Code, Cursor, Gemini, or CI.
 Each row states the failure mode the gate exists to prevent, because a check
 whose purpose has been forgotten is the first one somebody deletes.
 
-**Version: 15** — the same number as `templates/gates/VERSION`, which is the
+**Version: 16** — the same number as `templates/gates/VERSION`, which is the
 source. `tests/check_registry.py` refuses a commit where the two disagree, and
 also refuses a script in `templates/gates/` with no row below. A
 hand-maintained version line drifts, so it is checked rather than trusted.

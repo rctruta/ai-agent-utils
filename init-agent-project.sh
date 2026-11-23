@@ -7,7 +7,46 @@
 # sentence in a document the agent may not read (or may read and ignore).
 set -e
 
-# --- 0. Preflight: fail early, not half-provisioned -------------------------
+# --- 0. Help & argument parsing ----------------------------------------------
+usage() {
+  cat << 'USAGE'
+Usage: init-agent-project.sh [OPTIONS] <project_name> [root_directory]
+
+Initializes a workspace for human-agent collaboration.
+
+Options:
+  --gates       Install full claim-integrity and pre-commit gates (default)
+  --no-gates    Skip .gates/ and pre-commit; keep hooks, AGENTS.md, and scratch/
+  --lite        Quick prototype / issue-repro mode: git init, .gitignore,
+                minimal README.md, minimal pre-push guard (dirty tree, .env,
+                and gitleaks if installed), and optional Python uv venv.
+                Skips .gates/, AGENTS.md, scratch/, CI, and remote prompts.
+  --python      Set up a Python uv venv without prompting
+  -h, --help    Show this help message and exit
+USAGE
+}
+
+WANT_GATES=1
+LITE_MODE=0
+IS_PYTHON=""
+POSITIONAL=()
+for a in "$@"; do
+  case "$a" in
+    -h|--help)  usage; exit 0 ;;
+    --gates)    WANT_GATES=1 ;;
+    --no-gates) WANT_GATES=0 ;;
+    --lite)     LITE_MODE=1; WANT_GATES=0 ;;
+    --python)   IS_PYTHON=y ;;
+    -*)
+      echo "Error: unknown option '$a'." >&2
+      usage >&2
+      exit 2
+      ;;
+    *)          POSITIONAL+=("$a") ;;
+  esac
+done
+
+# --- 0b. Preflight: fail early, not half-provisioned -------------------------
 # With `set -e`, a missing tool mid-run leaves a half-initialized directory.
 # Check the hard dependency (git) up front; uv is checked only if needed.
 if ! command -v git >/dev/null 2>&1; then
@@ -15,27 +54,33 @@ if ! command -v git >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ -z "$1" ]; then
-  echo "Error: Project name required."
-  echo "Usage: ./init-agent-project.sh <project_name> [root_directory]"
+if [ "${#POSITIONAL[@]}" -lt 1 ]; then
+  echo "Error: Project name required." >&2
+  usage >&2
   exit 1
 fi
 
-WANT_GATES=1
-ARGS=""
-for a in "$@"; do
-  case "$a" in
-    --gates)    WANT_GATES=1 ;;
-    --no-gates) WANT_GATES=0 ;;
-    *)          ARGS="$ARGS $a" ;;
+PROJECT_NAME="${POSITIONAL[0]}"
+ROOT_DIR="${POSITIONAL[1]:-$HOME/Projects}"
+# Resolved through symlinks: a link to this script on PATH lives in a
+# directory that holds no templates.
+SELF="$0"
+while [ -L "$SELF" ]; do
+  LINK="$(readlink "$SELF")"
+  case "$LINK" in
+    /*) SELF="$LINK" ;;
+    *)  SELF="$(dirname "$SELF")/$LINK" ;;
   esac
 done
-# shellcheck disable=SC2086
-set -- $ARGS
+SCRIPT_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 
-PROJECT_NAME=$1
-ROOT_DIR=${2:-$HOME/Projects}
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# A project asked for with gates and created without them looks protected and
+# is not, so this is refused before anything is created.
+if [ "$WANT_GATES" = "1" ] && [ ! -d "$SCRIPT_DIR/templates/gates" ]; then
+  echo "Error: $SCRIPT_DIR/templates/gates not found; the gates cannot be installed." >&2
+  echo "  Run this script from its repository, or pass --no-gates." >&2
+  exit 1
+fi
 
 # 1. Ensure Root Directory Exists
 if [ ! -d "$ROOT_DIR" ]; then
@@ -49,15 +94,81 @@ cd "$PROJECT_NAME"
 
 echo "Initializing Agentic Workspace: $PROJECT_NAME"
 
-# 2. Interactive Python Check
-read -p "Is this a Python project? [y/N] " IS_PYTHON
-IS_PYTHON=${IS_PYTHON:-N}
+# 2. Interactive Python Check (skipped if --python was passed)
+if [ -z "$IS_PYTHON" ]; then
+  read -p "Is this a Python project? [y/N] " IS_PYTHON
+  IS_PYTHON=${IS_PYTHON:-N}
+fi
 
 # Fail early if Python was requested but uv is missing.
 if [[ "$IS_PYTHON" =~ ^[Yy]$ ]] && ! command -v uv >/dev/null 2>&1; then
   echo "Error: Python project requested but 'uv' is not on PATH." >&2
   echo "  Install uv (https://docs.astral.sh/uv/) or answer 'N'." >&2
   exit 1
+fi
+
+# --- LITE MODE (quick prototype / upstream issue repro) ----------------------
+if [ "$LITE_MODE" = "1" ]; then
+  cat << 'EOF' > .gitignore
+.venv/
+node_modules/
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.vscode/
+EOF
+
+  cat << EOF > README.md
+# $PROJECT_NAME
+
+Minimal workspace created with \`init-agent-project --lite\`.
+EOF
+
+  mkdir -p .githooks
+  cat << 'EOF' > .githooks/pre-push
+#!/bin/bash
+# Minimal pre-push guard for lite/repro workspaces: refuse dirty trees,
+# tracked .env files, and (if installed) gitleaks findings.
+set -e
+
+if [ -n "$(git status --porcelain)" ]; then
+    echo "[pre-push] REFUSING PUSH: working tree has uncommitted or untracked files" >&2
+    exit 1
+fi
+
+if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+    echo "[pre-push] REFUSING PUSH: .env is tracked in git." >&2
+    exit 1
+fi
+
+if command -v gitleaks >/dev/null 2>&1; then
+    if ! gitleaks detect --no-banner; then
+        echo "[pre-push] REFUSING PUSH: gitleaks detected a potential secret." >&2
+        exit 1
+    fi
+fi
+EOF
+  chmod +x .githooks/pre-push
+
+  if [[ "$IS_PYTHON" =~ ^[Yy]$ ]]; then
+    cat << 'EOF' > requirements.txt
+pytest
+EOF
+    echo "Creating uv venv..."
+    uv venv
+    source .venv/bin/activate
+    uv pip install -r requirements.txt
+  fi
+
+  git init -q
+  git config core.hooksPath .githooks
+  git add .
+  git commit -q -m "chore: initialized lite workspace"
+
+  echo "✅ Lite workspace initialized ($PROJECT_NAME)."
+  echo "   .githooks/pre-push installed (dirty-tree + .env + gitleaks-if-present)."
+  exit 0
 fi
 
 # The same-tree commit lock is OPTIONAL and narrow: it only helps two agents
@@ -96,6 +207,8 @@ stops you.**
   (`feat: ...`, `fix: ...`, `chore: ...`). Keep subjects concise and technical.
 - **Branch protection.** Remote branch protection (Require PR + Include administrators)
   is the true multi-agent boundary. Structure keeps agents from colliding.
+- **One-use branches (Squash-and-Merge).** Treat branches as one-use: after a PR
+  merges, always start the next change with `git fetch origin && git checkout -b <new-branch> origin/main`.
 
 ## The rules a hook can't enforce (on your honor — and watched)
 - **No bypass.** Never `git push --no-verify`, `git commit --no-verify`, or
@@ -241,6 +354,15 @@ if [ -n "$(git status --porcelain)" ]; then
     echo "  Commit your changes or delete untracked files before pushing." >&2
     exit 1
 fi
+
+if [ -f "$ROOT/package.json" ] && command -v npm >/dev/null 2>&1; then
+    echo "[pre-push] running Node test suite..."
+    if ! npm --prefix "$ROOT" test; then
+        echo "" >&2
+        echo "[pre-push] REFUSING PUSH: Node test suite is red." >&2
+        exit 1
+    fi
+fi
 EOF
 
 # 7. Python-Specific Setup
@@ -278,7 +400,8 @@ EOF
   # Pytest structure
   mkdir tests
   touch tests/__init__.py
-  cat << 'EOF' > tests/test_basic.py
+  if [ "$WANT_GATES" = "1" ]; then
+    cat << 'EOF' > tests/test_basic.py
 """The first test in a new project, and deliberately not `assert True`.
 
 A suite whose only test cannot fail is a gate that passes forever. The
@@ -297,13 +420,16 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
+# A gate that reads a named file instead of the git index is given one.
+FILE_ARGS = {"check_outbound.py": ["--no-private", "README.md"]}
+
 
 def test_gates_are_installed_and_runnable():
     """Every gate exists and runs. Exit 1 is a finding; a crash is a defect."""
     gates = sorted((ROOT / ".gates").glob("check_*.py"))
     assert gates, "no gates in .gates/ -- this workspace is not protected"
     for g in gates:
-        r = subprocess.run([sys.executable, str(g)], cwd=ROOT,
+        r = subprocess.run([sys.executable, str(g), *FILE_ARGS.get(g.name, [])], cwd=ROOT,
                            capture_output=True, text=True, timeout=60)
         assert r.returncode in (0, 1), (
             f"{g.name} crashed with exit {r.returncode}: {r.stderr[-200:]}")
@@ -316,6 +442,23 @@ def test_hooks_are_wired():
     assert r.stdout.strip() == ".githooks", (
         "core.hooksPath is not .githooks, so the pre-commit gate never runs")
 EOF
+  else
+    cat << 'EOF' > tests/test_basic.py
+"""Starter test verifying that git hooks are wired."""
+import pathlib
+import subprocess
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+
+def test_hooks_are_wired():
+    """A hook git does not know about is a file, not a gate."""
+    r = subprocess.run(["git", "config", "core.hooksPath"], cwd=ROOT,
+                       capture_output=True, text=True)
+    assert r.stdout.strip() == ".githooks", (
+        "core.hooksPath is not .githooks, so the pre-push gate never runs")
+EOF
+  fi
 
   cat << 'EOF' > requirements.txt
 pytest
@@ -335,26 +478,50 @@ on:
 
 jobs:
   test:   # this job name is the required status-check context
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
       - run: |
-          uv venv
-          uv pip install -r requirements.txt
+          if [ -f pyproject.toml ]; then
+            uv sync
+          else
+            uv venv
+            uv pip install --python .venv/bin/python -r requirements.txt
+          fi
+          git config core.hooksPath .githooks   # hooks do not clone
           .venv/bin/pytest
+          if [ -f package.json ] && command -v npm >/dev/null 2>&1; then
+            npm test
+          fi
 
   gates:  # the hooks are local policy and bypassable; this copy is not
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+      - name: Cache pre-commit environments
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-py3.12-${{ hashFiles('.pre-commit-config.yaml') }}
       - run: |
           [ -d .gates ] || { echo "no .gates in this repository"; exit 0; }
+          # The pre-commit hook refuses to pass without its runner.
+          uv tool install pre-commit
+          git config core.hooksPath .githooks   # hooks do not clone
           for g in .gates/*.py; do
-            case "$(basename "$g")" in _*) continue;; esac
+            # check_outbound and check_wheel read a named file, not the
+            # tree, so there is nothing here to hand them; prove_gates.sh
+            # below shows both still fire.
+            case "$(basename "$g")" in _*|check_outbound.py|check_wheel.py) continue;; esac
             echo "--- $(basename "$g")"
             python3 "$g" --check
           done
+          # The proofs commit in throwaway repositories, and a runner has
+          # no git identity of its own.
+          export GIT_AUTHOR_NAME=ci GIT_AUTHOR_EMAIL=ci@example.invalid
+          export GIT_COMMITTER_NAME=ci GIT_COMMITTER_EMAIL=ci@example.invalid
           sh .gates/tests/prove_gates.sh
 EOF
 
@@ -374,6 +541,7 @@ chmod +x .githooks/pre-push
 # committed or shared.
 cat << 'EOF' > .gitignore
 .venv/
+node_modules/
 .env
 __pycache__/
 *.pyc
@@ -386,8 +554,23 @@ EOF
 # README stub — leave the new project self-documenting (ironically, the
 # generator had none). $PROJECT_NAME expands; backticks are escaped to stay
 # literal in this unquoted heredoc.
+if [[ "$IS_PYTHON" =~ ^[Yy]$ ]]; then
+  CI_BADGE="[![CI](https://github.com/rctruta/$PROJECT_NAME/actions/workflows/ci.yml/badge.svg)](https://github.com/rctruta/$PROJECT_NAME/actions/workflows/ci.yml)"
+  EXTRA_COMMENTED_BADGES=""
+else
+  CI_BADGE=""
+  EXTRA_COMMENTED_BADGES="[![CI](https://github.com/rctruta/$PROJECT_NAME/actions/workflows/ci.yml/badge.svg)](https://github.com/rctruta/$PROJECT_NAME/actions/workflows/ci.yml)
+"
+fi
 cat << EOF > README.md
 # $PROJECT_NAME
+
+${CI_BADGE:+$CI_BADGE
+}[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-green.svg)](LICENSE)
+<!-- Uncomment when CI, package.json version, or MCP server is live:
+${EXTRA_COMMENTED_BADGES}[![Version](https://img.shields.io/github/package-json/v/rctruta/$PROJECT_NAME?label=version&color=blue)](package.json)
+[![MCP Server](https://img.shields.io/badge/MCP-stdio-7c3aed)](#mcp-server)
+-->
 
 An agent-safe workspace: humans and AI coding agents share this repository.
 The rules of engagement
@@ -410,7 +593,8 @@ written down.
   agent's environment — one shared \`.env\` can only hold one value).
 
 ## License
-Add a LICENSE file of your choice (MIT is a common, permissive default).
+Add a \`LICENSE\` file (Apache License 2.0 is the default for code; written
+results or documentation may be dual-licensed under CC BY 4.0).
 EOF
 
 # The stub documents the lock only when it was actually provisioned.
@@ -462,7 +646,7 @@ fi
 # --- GATES INSTALL ---------------------------------------------------------
 # Claim integrity + change safety. Agent-agnostic: plain scripts run by git
 # hooks, so they bind whoever is driving. Agent-specific files only DESCRIBE.
-if [ "$WANT_GATES" = "1" ] && [ -d "$SCRIPT_DIR/templates/gates" ]; then
+if [ "$WANT_GATES" = "1" ]; then
   mkdir -p .gates
   cp -R "$SCRIPT_DIR/templates/gates/." .gates/
   # Everything executable, found rather than listed. A hardcoded list is a
@@ -472,12 +656,18 @@ if [ "$WANT_GATES" = "1" ] && [ -d "$SCRIPT_DIR/templates/gates" ]; then
   sh "$SCRIPT_DIR/templates/install_gates.sh"
   chmod +x .githooks/pre-commit .githooks/pre-push
   echo "=> Gates installed: .gates/ + pre-commit framework + agent adapters"
-elif [ "$WANT_GATES" = "1" ]; then
-  echo "=> WARNING: templates/gates not found; gates skipped." >&2
 fi
 
 git config core.hooksPath .githooks
 git add .
+# The gate scripts carry literals of their own, and check_script_standards
+# does not exempt .gates/. Those findings are accepted here, in a baseline
+# that is committed and visible in a diff, so the gate starts clean and
+# reports only what the project adds.
+if [ -f .gates/check_script_standards.py ]; then
+  python3 .gates/check_script_standards.py --baseline >/dev/null
+  git add .
+fi
 # Normalize before the first commit, the way any repository adopting
 # pre-commit does it: the whitespace hooks rewrite files rather than only
 # reporting, so running them once up front means the first commit is already

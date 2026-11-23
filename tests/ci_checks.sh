@@ -27,10 +27,14 @@ run() { printf "$1" | bash "$SCRIPT" "$2" "$ROOT" "${@:3}" >/dev/null 2>&1; }
 echo "3) default path: pre-push + claim gate — no lock, no CI workflow"
 run 'N\nN\nN\n' plain
 [ -f "$ROOT/plain/.githooks/pre-push" ]
+grep -q 'package.json' "$ROOT/plain/.githooks/pre-push"
+grep -q 'badge.svg' "$ROOT/plain/README.md"
+grep -q 'img.shields.io/badge/License' "$ROOT/plain/README.md"
 # pre-commit now exists because the claim gate lives there. It must contain the
 # gate and must NOT contain the optional same-tree lock.
 [ -f "$ROOT/plain/.githooks/pre-commit" ]
 grep -q 'claim integrity gate' "$ROOT/plain/.githooks/pre-commit"
+grep -q 'check_script_standards.py' "$ROOT/plain/.githooks/pre-commit"
 ! grep -q 'agent-lock' "$ROOT/plain/.githooks/pre-commit"
 [ ! -e "$ROOT/plain/agent-lock" ]
 [ ! -e "$ROOT/plain/.github/workflows/ci.yml" ]
@@ -58,8 +62,16 @@ echo "5b) gates: installed by default, provable, and skippable"
 [ -f "$ROOT/plain/.claude/skills/gates/SKILL.md" ]
 [ -f "$ROOT/plain/.cursor/rules/gates.mdc" ]
 grep -q 'Claim integrity (enforced)' "$ROOT/plain/AGENTS.md"
-# every gate must actually fire
-(cd "$ROOT/plain" && ./.gates/tests/prove_gates.sh >/dev/null)
+# every gate must actually fire, and the hook must be proven through git:
+# a proof that was skipped prints nothing, so its line is required here
+(cd "$ROOT/plain" && ./.gates/tests/prove_gates.sh >"$ROOT/prove.log" 2>&1) || {
+  echo "  FAIL: the gate proofs fail in a freshly seeded project" >&2
+  grep -vE '^  PASS ' "$ROOT/prove.log" >&2; exit 1; }
+for proof in 'accepts a clean staged file' 'refuses a violating staged file'; do
+  grep -q "PASS  the pre-commit hook $proof end to end" "$ROOT/prove.log" || {
+    echo "  FAIL: the end-to-end hook proof did not run: no '$proof' line" >&2
+    grep -vE '^  PASS ' "$ROOT/prove.log" >&2; exit 1; }
+done
 # --no-gates restores the minimal path
 run 'N\nN\nN\n' nogates --no-gates
 [ ! -e "$ROOT/nogates/.gates" ]
@@ -84,11 +96,73 @@ rm -rf "$FAKEBIN"
 echo "5d) GATES.md agrees with templates/gates/ (version + every script)"
 python3 "$(dirname "$0")/check_registry.py" --check
 
+echo "5e) a seeded Python project passes its own CI jobs from a fresh clone"
+# The workflow text itself is executed, so the check cannot drift from what CI
+# runs. Each job gets its own fresh clone, the condition CI has: no hooks
+# path, no virtualenv, and nothing left behind by another job.
+job_script() {
+  awk -v job="  $1:" '
+    /^  [a-z_-]+:/ { in_job = ($0 ~ "^" job) ; in_run = 0 }
+    in_job && /- run: \|/ { in_run = 1; next }
+    in_job && in_run { sub(/^          /, ""); print }
+  ' "$ROOT/py/.github/workflows/ci.yml"
+}
+# A runner has no git identity either, and git must not guess one here.
+printf '[user]\n\tuseConfigOnly = true\n' > "$ROOT/no-identity.gitconfig"
+for job in test gates; do
+  job_script "$job" > "$ROOT/$job.sh"
+  [ -s "$ROOT/$job.sh" ] || { echo "  FAIL: no run block found for job '$job'" >&2; exit 1; }
+  git clone -q "$ROOT/py" "$ROOT/clone-$job"
+  (cd "$ROOT/clone-$job" && unset VIRTUAL_ENV && GIT_CONFIG_GLOBAL="$ROOT/no-identity.gitconfig" \
+     GIT_CONFIG_SYSTEM=/dev/null sh -e "$ROOT/$job.sh" >"$ROOT/$job.log" 2>&1) || {
+    echo "  FAIL: seeded CI job '$job' fails on a fresh clone" >&2
+    tail -15 "$ROOT/$job.log" >&2; exit 1; }
+done
+
+echo "5f) invoked through a symlink, the gates are still found"
+ln -s "$SCRIPT" "$ROOT/init-link"
+printf 'N\nN\nN\n' | bash "$ROOT/init-link" vialink "$ROOT" >/dev/null 2>&1
+[ -f "$ROOT/vialink/.gates/VERSION" ]
+
+echo "5g) gates wanted but templates missing: refused before anything is created"
+mkdir "$ROOT/bare"
+cp "$SCRIPT" "$ROOT/bare/init-agent-project.sh"
+if printf 'N\nN\nN\n' | bash "$ROOT/bare/init-agent-project.sh" orphan "$ROOT" >/dev/null 2>&1; then
+  echo "  FAIL: seeded a project without the gates it was asked for" >&2; exit 1
+fi
+[ ! -e "$ROOT/orphan" ]
+
 echo "6) hooks are wired (core.hooksPath) and first commit exists"
 [ "$(git -C "$ROOT/plain" config core.hooksPath)" = ".githooks" ]
 git -C "$ROOT/plain" rev-parse HEAD >/dev/null
 
-echo "7) the protection-call checker itself refuses and spares the right lines"
+echo "7) --help / -h prints usage without creating a directory"
+HELP_OUT="$(bash "$SCRIPT" --help)"
+echo "$HELP_OUT" | grep -q -- '--lite'
+echo "$HELP_OUT" | grep -q -- '--python'
+[ ! -e "$ROOT/--help" ]
+bash "$SCRIPT" -h >/dev/null
+
+echo "8) --lite mode: minimal workspace with pre-push guard, no gates/AGENTS/scratch/CI"
+run 'N\n' liteproj --lite
+[ -d "$ROOT/liteproj/.git" ]
+[ -f "$ROOT/liteproj/.gitignore" ]
+[ -f "$ROOT/liteproj/README.md" ]
+[ -x "$ROOT/liteproj/.githooks/pre-push" ]
+grep -q 'ls-files --error-unmatch .env' "$ROOT/liteproj/.githooks/pre-push"
+[ "$(git -C "$ROOT/liteproj" config core.hooksPath)" = ".githooks" ]
+[ ! -e "$ROOT/liteproj/.gates" ]
+[ ! -e "$ROOT/liteproj/AGENTS.md" ]
+[ ! -e "$ROOT/liteproj/scratch" ]
+[ ! -e "$ROOT/liteproj/.github" ]
+git -C "$ROOT/liteproj" rev-parse HEAD >/dev/null
+
+echo "8b) --lite --python: non-interactive Python venv"
+bash "$SCRIPT" --lite --python litepy "$ROOT" >/dev/null 2>&1
+[ -f "$ROOT/litepy/requirements.txt" ]
+[ -x "$ROOT/litepy/.venv/bin/python" ]
+
+echo "9) the protection-call checker itself refuses and spares the right lines"
 # A checker is only trustworthy once it has been seen to do both. The dotted
 # path is an error in a field that BUILDS the request and correct in a --jq
 # expression that READS the response, so the narrow rule is the whole point.

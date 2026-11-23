@@ -125,6 +125,23 @@ id = "npm"
 status = "planned"
 trigger = "package.json"
 why = "a Node package on npm"
+# When this goes live:
+#   [[surfaces.requires]]
+#   kind = "json_version_matches_source"
+#   path = "package.json"
+#   field = "version"
+#   [[surfaces.requires]]
+#   kind = "file_exists"
+#   path = "README.md"
+#   [[surfaces.requires]]
+#   kind = "file_exists"
+#   path = "LICENSE"
+#   [[surfaces.requires]]
+#   kind = "file_exists"
+#   path = "NOTICE"
+#   [[surfaces.requires]]
+#   kind = "file_exists"
+#   path = "types/index.d.ts"
 
 
 [[surfaces]]

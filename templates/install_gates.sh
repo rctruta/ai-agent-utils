@@ -101,6 +101,10 @@ if [ -f "$ROOT/.gates/verify.py" ]; then
       "$PY" "$ROOT/.gates/no_orphans.py" --check || {
         echo "  -> A module is imported only by its own tests." >&2
         exit 1; }; }
+    [ -f "$ROOT/.gates/check_script_standards.py" ] && {
+      "$PY" "$ROOT/.gates/check_script_standards.py" --check || {
+        echo "  -> A script violates script standards." >&2
+        exit 1; }; }
   fi
 fi
 GATEHOOK
